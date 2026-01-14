@@ -4,22 +4,22 @@
 **Version**: 1.0  
 **Date**: January 14, 2026  
 **Author**: AI Engineering Team  
-**Status**: Production-Ready (Validated January 2026)  
+**Status**: Experimental  
 
 ---
 
 ## Executive Summary
 
-**Mayor West Mode** is a fully autonomous development workflow that leverages **GitHub Copilot Coding Agent** with **YOLO (You Only Live Once) auto-approval** mode to execute a queue of development tasks with zero human intervention after initial setup.
+**Mayor West Mode** is an experimental autonomous development workflow that leverages **GitHub Copilot Coding Agent** with **YOLO (You Only Live Once) auto-approval** mode to attempt execution of development tasks with reduced human intervention.
 
-Inspired by **Mayor Adam West from Family Guy**—characterized by eccentric decision-making, unpredictable execution, unwavering confidence despite chaos, and a peculiar charm—Mayor West Mode embodies these principles:
+Inspired by **Mayor Adam West from Family Guy**—characterized by eccentric decision-making, unpredictable execution, and unwavering confidence despite chaos—Mayor West Mode embodies these principles:
 
 - **Eccentric Autonomy**: Makes decisions and executes without waiting for permission.
 - **Unpredictable Creativity**: Finds unconventional solutions to complex problems.
 - **Unwavering Confidence**: Proceeds forward even when others doubt.
-- **Weird but Effective**: Results often exceed expectations despite chaotic process.
+- **Weird but Effective**: Sometimes works despite the unconventional approach.
 
-This TRD specifies the technical architecture, implementation, and operational requirements for **Mayor West Mode** to function as a production-grade autonomous agent on GitHub Copilot.
+This TRD specifies the technical architecture, implementation, and operational requirements for **Mayor West Mode**.
 
 ---
 
@@ -1083,8 +1083,8 @@ All acceptance criteria checked. Tests pass. Build succeeds. PR merged.
 ## 13. Document Control
 
 | Version | Date | Author | Changes |
-|---------|------|--------|---------|
-| 1.0 | Jan 14, 2026 | AI Engineering | Initial TRD - Production-ready |
+|---------|------|--------|----------|
+| 1.0 | Jan 14, 2026 | AI Engineering | Initial TRD |
 
 ---
 
@@ -1094,14 +1094,12 @@ All acceptance criteria checked. Tests pass. Build succeeds. PR merged.
 
 ## Validation Summary
 
-This TRD has been thoroughly researched and validated against:
+This TRD references the following sources:
 
-✅ **GitHub APIs**: REST v2022-11-28 and GraphQL stable APIs (documented in official GitHub docs)
-✅ **VS Code YOLO Mode**: Documented in official VS Code YOLO gist (Sept 2025) and settings reference (Jan 2026)
-✅ **GitHub Copilot Coding Agent**: Behavior validated in production release (June 2025)
-✅ **GitHub Actions**: Workflows stable since 2019, well-documented
-✅ **Auto-Merge Mechanism**: peter-evans action production-grade (1000+ stars), based on stable GitHub GraphQL mutation
-✅ **Branch Protection**: GitHub enforces independent of workflow logic
-✅ **All technical claims**: Sourced from official documentation or production-tested implementations
+- **GitHub APIs**: REST v2022-11-28 and GraphQL stable APIs
+- **VS Code YOLO Mode**: Documented in VS Code settings
+- **GitHub Copilot Coding Agent**: Based on observed behavior
+- **GitHub Actions**: Standard workflow capabilities
+- **Auto-Merge Mechanism**: Uses peter-evans/enable-pull-request-automerge action
 
-**This TRD is production-ready for implementation as of January 2026.**
+**Note**: This is experimental software. Test thoroughly before relying on it.

@@ -1,35 +1,31 @@
-# Mayor West Mode - CLI Installation & User Guide
+# Mayor West Mode — CLI User Guide
 
-**Version**: 1.0.0  
-**Status**: Production-Ready (January 2026)  
-**Last Updated**: January 14, 2026
+> **Complete guide to installing, configuring, and using Mayor West Mode**
 
 ---
 
 ## Table of Contents
 
-1. [Quick Start](#quick-start)
-2. [Installation Methods](#installation-methods)
-3. [CLI Commands](#cli-commands)
-4. [Setup Wizard](#setup-wizard)
-5. [Configuration Guide](#configuration-guide)
-6. [Usage Examples](#usage-examples)
-7. [Troubleshooting](#troubleshooting)
-8. [Advanced Usage](#advanced-usage)
+- [Quick Start](#quick-start)
+- [Installation Methods](#installation-methods)
+- [CLI Commands](#cli-commands)
+- [Setup Wizard](#setup-wizard)
+- [Configuration Options](#configuration-options)
+- [Post-Setup Steps](#post-setup-steps)
+- [Troubleshooting](#troubleshooting)
+- [Advanced Usage](#advanced-usage)
 
 ---
 
 ## Quick Start
 
-**One-liner installation** (requires Node.js 18+):
+**One command to get started** (requires Node.js 18+):
 
 ```bash
 npx mayor-west-mode setup
 ```
 
-That's it! The CLI will guide you through setup interactively.
-
-**Verify your setup:**
+Follow the interactive prompts, then verify:
 
 ```bash
 npx mayor-west-mode verify
@@ -39,218 +35,116 @@ npx mayor-west-mode verify
 
 ## Installation Methods
 
-### Method 1: NPX (Recommended - No Installation)
+### NPX (Recommended)
 
-Run directly without installing:
+Run directly without installing—always gets the latest version:
 
 ```bash
 npx mayor-west-mode setup
 ```
 
-**Pros**: No system clutter, always latest version  
-**Cons**: Slower first run (downloads package)
+### Global Installation
 
-### Method 2: Global NPM Installation
-
-Install globally once, use everywhere:
+Install once, use everywhere:
 
 ```bash
 npm install -g mayor-west-mode
-```
-
-Then use anywhere:
-
-```bash
 mayor-west-mode setup
 ```
 
-**Pros**: Faster, available in any directory  
-**Cons**: Takes disk space, need updates manually
+### Local Project Installation
 
-### Method 3: Local Project Installation
-
-Install in your project directory:
+Version-lock for team consistency:
 
 ```bash
 npm install mayor-west-mode --save-dev
-```
-
-Then use via npm scripts:
-
-```bash
-npm run setup    # configured in package.json
-npm run verify
-npm run examples
-```
-
-Or via npx:
-
-```bash
 npx mayor-west-mode setup
 ```
 
-### Method 4: Docker (For Team Distribution)
+### Docker
 
-Create a Dockerfile:
-
-```dockerfile
-FROM node:18-alpine
-
-WORKDIR /app
-
-RUN npm install -g mayor-west-mode
-
-ENTRYPOINT ["mayor-west-mode"]
-CMD ["help"]
-```
-
-Build and use:
+For CI/CD or environments without Node.js:
 
 ```bash
-docker build -t mayor-west-mode .
-docker run -v $(pwd):/app mayor-west-mode setup
+docker run -v $(pwd):/app -w /app node:18 npx mayor-west-mode setup
 ```
 
 ---
 
 ## CLI Commands
 
-### `mayor-west-mode setup`
+### `setup` — Interactive Setup Wizard
 
-**Description**: Guided interactive setup wizard  
-**Usage**: `npx mayor-west-mode setup`
-
-**What it does**:
-1. Verifies git repository
-2. Extracts GitHub repository info
-3. Prompts for configuration preferences
-4. Creates all necessary files
-5. Provides next steps
-
-**Output**:
-```
-━━━ 🤖 Mayor West Mode Setup ━━━
-
-✓ Git repository detected
-✓ GitHub repository: yourusername/your-repo
-
-[Interactive prompts for setup options]
-
-✓ Created 5 configuration files
-
-🎉 Setup Complete!
-
-Next Steps:
-1. Review generated files
-2. Configure GitHub settings
-3. Commit and push
-4. Test the setup
+```bash
+npx mayor-west-mode setup
 ```
 
----
+Walks you through:
+1. Git repository verification
+2. Setup mode selection (Full/Minimal/Custom)
+3. Auto-merge preferences
+4. Iteration limit configuration
+5. File creation
 
-### `mayor-west-mode verify`
+### `verify` — Configuration Check
 
-**Description**: Verify all setup files are in place  
-**Usage**: `npx mayor-west-mode verify`
+```bash
+npx mayor-west-mode verify
+```
 
-**What it checks**:
+Checks for:
 - ✓ Git repository
-- ✓ .vscode/settings.json
-- ✓ .github/agents/mayor-west-mode.md
-- ✓ .github/workflows/mayor-west-auto-merge.yml
-- ✓ .github/workflows/mayor-west-orchestrator.yml
-- ✓ .github/ISSUE_TEMPLATE/mayor-task.md
+- ✓ VS Code YOLO settings
+- ✓ Agent instructions
+- ✓ Auto-merge workflow
+- ✓ Orchestrator workflow
+- ✓ Task template
 - ✓ GitHub remote
 
-**Output**:
-```
-━━━ 🔍 Verifying Setup ━━━
+### `status` — Current State
 
-✓ Git Repository
-✓ VS Code YOLO Settings
-✓ Copilot Agent Instructions
-✓ Auto-Merge Workflow
-✓ Orchestrator Workflow
-✓ Task Template
-✓ GitHub Remote
-
-Result: 7/7 checks passed
-
-✓ All systems go! 🚀
+```bash
+npx mayor-west-mode status
 ```
 
----
+Shows:
+- Repository information
+- Which files exist
+- What's missing
 
-### `mayor-west-mode help`
+### `examples` — Usage Examples
 
-**Description**: Show help message and usage guide  
-**Usage**: `npx mayor-west-mode help`
-
-**Output**: Shows all available commands, usage patterns, and examples
-
----
-
-### `mayor-west-mode examples`
-
-**Description**: Show usage examples and best practices  
-**Usage**: `npx mayor-west-mode examples`
-
-**Examples shown**:
-1. Simple bug fix task
-2. Feature implementation task
-3. Complex feature task
-
-**Best practices included**:
-- Writing clear acceptance criteria
-- Setting technical constraints
-- Defining testing requirements
-- Task complexity estimation
-
----
-
-### `mayor-west-mode status`
-
-**Description**: Show current Mayor West Mode status  
-**Usage**: `npx mayor-west-mode status`
-
-**Output**:
+```bash
+npx mayor-west-mode examples
 ```
-━━━ Mayor West Mode Status ━━━
 
-Repository Information:
-  Git Repository: ✓
-  Remote URL: git@github.com:yourusername/your-repo.git
-  Current Branch: main
+Displays:
+- Sample task definitions
+- Complexity guidelines
+- Best practices
 
-Configuration Files:
-  ✓ VS Code YOLO Settings
-  ✓ Copilot Agent Instructions
-  ✓ Auto-Merge Workflow
-  ✓ Orchestrator Workflow
-  ✓ Task Template
+### `help` — Help & Usage
+
+```bash
+npx mayor-west-mode help
 ```
 
 ---
 
 ## Setup Wizard
 
-### Step 1: Repository Verification
+### Step 1: Repository Check
 
-The CLI checks that you're in a git repository with a GitHub remote.
+The CLI verifies you're in a git repository with a GitHub remote.
 
-**If this fails**:
+**If this fails:**
+
 ```bash
-# Initialize git if needed
 git init
-
-# Add GitHub remote
-git remote add origin git@github.com:yourusername/your-repo.git
+git remote add origin git@github.com:user/repo.git
 ```
 
-### Step 2: Setup Type Selection
-
-Choose your installation type:
+### Step 2: Setup Mode
 
 ```
 ? Which setup mode would you like?
@@ -259,101 +153,36 @@ Choose your installation type:
   Custom Setup (choose files individually)
 ```
 
-**Full Setup** (Recommended):
-- Installs all 5 files
-- Most productive mode
-- Complete Mayor West Mode functionality
+| Mode | Files Created | Best For |
+|------|---------------|----------|
+| **Full** | All 5 files | Most users |
+| **Minimal** | 4 core files | Custom templates |
+| **Custom** | Your choice | Incremental adoption |
 
-**Minimal Setup**:
-- Installs only critical files (4 of 5)
-- Skips optional task template
-- Good if you have custom templates
-
-**Custom Setup**:
-- Choose each file individually
-- Most control
-- Useful for gradual rollout
-
-### Step 3: Configuration Options
+### Step 3: Configuration
 
 ```
-? Enable auto-merge on PRs?
-  (Y/n) Y
-
-? How should PRs be merged?
-  ❯ Squash (recommended)
-    Merge (preserve commits)
-    Rebase (linear history)
-
-? Max Copilot iterations before stopping:
-  (15)
+? Enable auto-merge on PRs? (Y/n)
+? How should PRs be merged? (Squash/Merge/Rebase)
+? Max iterations before stopping: (15)
 ```
-
-**Auto-Merge**: Automatically approve and merge PRs from Copilot  
-**Merge Strategy**:
-- **Squash**: Combines all commits into one (clean history)
-- **Merge**: Preserves all commits (detailed history)
-- **Rebase**: Linear history without merge commits
-
-**Iteration Limit**: Maximum number of times Copilot can retry (safety limit)
 
 ### Step 4: File Creation
 
-```
-Creating Configuration Files
-
-✓ VS Code YOLO Settings
-✓ Copilot Agent Instructions
-✓ Auto-Merge Workflow
-✓ Orchestrator Workflow
-✓ Task Template
-
-Created 5 configuration files
-```
-
-### Step 5: Next Steps
-
-The CLI provides actionable next steps:
-
-```
-1. Review the generated files:
-   .vscode/settings.json
-   .github/agents/mayor-west-mode.md
-   .github/workflows/mayor-west-auto-merge.yml
-   .github/workflows/mayor-west-orchestrator.yml
-   .github/ISSUE_TEMPLATE/mayor-task.md
-
-2. Configure GitHub repository settings:
-   a) Enable auto-merge:
-      GitHub → Settings → Pull Requests → Allow auto-merge
-
-   b) Enable branch protection:
-      GitHub → Settings → Branches → Add Rule
-      ├─ Branch: main
-      ├─ ☑ Require status checks
-      └─ ☑ Require PR reviews
-
-3. Commit and push:
-   git add .vscode .github
-   git commit -m "Mayor West Mode: Add autonomous workflows"
-   git push origin main
-
-4. Test the setup:
-   GitHub → Actions → Mayor West Orchestrator → Run workflow
-
-5. Create your first task:
-   GitHub → Issues → New → Mayor Task template
-```
+The CLI creates:
+- `.vscode/settings.json`
+- `.github/agents/mayor-west-mode.md`
+- `.github/workflows/mayor-west-auto-merge.yml`
+- `.github/workflows/mayor-west-orchestrator.yml`
+- `.github/ISSUE_TEMPLATE/mayor-task.md`
 
 ---
 
-## Configuration Guide
+## Configuration Options
 
-### VS Code Settings (.vscode/settings.json)
+### YOLO Settings
 
-**What it does**: Configures GitHub Copilot to auto-approve safe commands
-
-**Key settings**:
+Located in `.vscode/settings.json`:
 
 ```json
 {
@@ -364,414 +193,182 @@ The CLI provides actionable next steps:
     "rm": false,
     "kill": false
   },
-  "chat.agent.iterationLimit": 15,
-  "chat.agent.maxTokensPerIteration": 4000
+  "chat.agent.iterationLimit": 15
 }
 ```
 
-**Auto-approved commands**:
-- `git commit` - Commit changes
-- `git push` - Push to remote
-- `npm test`, `npm run test` - Run tests
-- `npm lint`, `npm run lint` - Run linter
-- `npm build`, `npm run build` - Build project
-
-**Blocked commands** (require manual approval):
-- `rm`, `rm -rf` - Delete files
-- `kill` - Kill processes
-- `git reset --hard` - Destructive operations
-
-**Customizing**:
-
-Edit .vscode/settings.json to add/remove commands:
+**Customizing approved commands:**
 
 ```json
 {
   "chat.tools.terminal.autoApprove": {
-    "/^docker\\s+push/": false,  // Require approval for docker push
-    "/^npm\\s+publish/": false    // Require approval for npm publish
+    "/^pytest\\b/": true,           // Add pytest
+    "/^cargo\\s+(test|build)\\b/": true,  // Add cargo
+    "/^docker\\s+push/": false      // Block docker push
   }
 }
 ```
 
-### Agent Instructions (.github/agents/mayor-west-mode.md)
+### Agent Instructions
 
-**What it does**: Tells Copilot how to behave when assigned tasks
+Modify `.github/agents/mayor-west-mode.md` to add project-specific rules:
 
-**Key sections**:
-1. Mission - What to do
-2. Operating Principles - How to approach tasks
-3. Failure Recovery - How to handle errors
-4. Safety Constraints - What not to do
-5. Success Metrics - How to know when done
-
-**Customizing**:
-
-Modify `.github/agents/mayor-west-mode.md` to:
-- Add project-specific guidelines
-- Reference your code style guide
-- Include architectural patterns
-- Add domain-specific constraints
-
-Example addition:
 ```markdown
 ## Project-Specific Rules
 
-- Always use TypeScript strict mode
-- Follow BEM naming for CSS classes
-- Use snake_case for database columns
+- Use TypeScript strict mode
+- Follow BEM naming for CSS
 - Write JSDoc for public APIs
 ```
 
-### Workflows
-
-**Auto-Merge** (.github/workflows/mayor-west-auto-merge.yml):
-- Triggers on PR creation by @copilot
-- Approves the PR automatically
-- Enables auto-merge with SQUASH strategy
-- Merges when all checks pass
-
-**Orchestrator** (.github/workflows/mayor-west-orchestrator.yml):
-- Finds unassigned mayor-task issues
-- Assigns to @copilot
-- Waits for completion
-- Loops for next task
-
 ---
 
-## Usage Examples
+## Post-Setup Steps
 
-### Example 1: Simple Setup (5 minutes)
+### 1. Configure GitHub Settings
+
+**Enable auto-merge:**
+```
+GitHub.com → Repository → Settings → Pull Requests → ✅ Allow auto-merge
+```
+
+**Add branch protection:**
+```
+GitHub.com → Settings → Branches → Add Rule
+├─ Branch: main
+├─ ✅ Require status checks
+└─ ✅ Require pull request reviews (1)
+```
+
+### 2. Commit and Push
 
 ```bash
-# 1. Go to your repository
-cd /path/to/your/repo
-
-# 2. Run setup
-npx mayor-west-mode setup
-
-# Select:
-# - Full Setup
-# - Enable auto-merge: yes
-# - Merge strategy: SQUASH
-# - Iterations: 15
-
-# 3. The CLI creates all files and tells you next steps
-
-# 4. Follow GitHub configuration steps
-# (Enable auto-merge, branch protection)
-
-# 5. Commit and push
 git add .vscode .github
-git commit -m "Mayor West Mode: Add autonomous workflows"
+git commit -m "[MAYOR] Add autonomous workflow configuration"
 git push origin main
-
-# 6. Verify
-npx mayor-west-mode verify
 ```
 
-### Example 2: Viewing Examples
+### 3. Test the Setup
 
-```bash
-# Show all usage examples and best practices
-npx mayor-west-mode examples
-
-# Output shows:
-# - 3 task examples (simple, medium, complex)
-# - Best practices for writing tasks
-# - Complexity estimation guide
-```
-
-### Example 3: Checking Status
-
-```bash
-# Check current setup status
-npx mayor-west-mode status
-
-# Shows:
-# - Git and GitHub info
-# - Which files are present
-# - Which files are missing (if any)
-```
-
-### Example 4: Creating Your First Task
-
-After setup:
-
-```bash
-# 1. Go to GitHub
-# github.com/yourusername/your-repo
-
-# 2. Click "Issues" → "New Issue"
-
-# 3. Select "Mayor Task" template
-
-# 4. Fill in details:
-#    [MAYOR] Fix login button alignment
-#    
-#    Context: Button looks misaligned on mobile
-#    
-#    Acceptance Criteria:
-#    - [ ] Fix alignment on <768px screens
-#    - [ ] Tests pass
-#    - [ ] Works on Safari and Chrome
-#    
-#    Testing: npm test
-
-# 5. Click "Submit new issue"
-
-# 6. Go to Actions → Mayor West Orchestrator
-#    Click "Run workflow"
-
-# 7. Watch as Copilot implements the task!
-```
+1. Create a simple test issue using the Mayor Task template
+2. Go to Actions → Mayor West Orchestrator → Run workflow
+3. Watch Copilot implement the task
 
 ---
 
 ## Troubleshooting
 
-### Problem: "Not a git repository"
+### "Not a git repository"
 
-**Cause**: You're not in a git repository
-
-**Solution**:
 ```bash
-# Initialize git if needed
 git init
-
-# Add GitHub remote
-git remote add origin git@github.com:yourusername/your-repo.git
-
-# Then run setup again
+git remote add origin git@github.com:user/repo.git
 npx mayor-west-mode setup
 ```
 
-### Problem: "No git remote found"
+### "No git remote found"
 
-**Cause**: Repository has no GitHub remote
-
-**Solution**:
 ```bash
-# Add GitHub remote
-git remote add origin git@github.com:yourusername/your-repo.git
+git remote add origin git@github.com:user/repo.git
+npx mayor-west-mode setup
+```
 
-# Verify it was added
+### "Could not parse GitHub URL"
+
+Verify your remote points to GitHub:
+
+```bash
 git remote -v
-
-# Run setup again
-npx mayor-west-mode setup
+# Should show: origin git@github.com:user/repo.git
 ```
 
-### Problem: "Could not parse GitHub URL"
+### Node.js version too old
 
-**Cause**: Remote URL doesn't point to GitHub
-
-**Solution**:
 ```bash
-# Check current remote
-git remote -v
-
-# If wrong, remove and re-add
-git remote remove origin
-git remote add origin git@github.com:yourusername/your-repo.git
-
-# Run setup again
-npx mayor-west-mode setup
+node --version  # Need 18+
+nvm install 18 && nvm use 18
 ```
 
-### Problem: Files already exist (overwrite?)
+### Files already exist
 
-**Cause**: Files from previous setup attempts exist
+The CLI will ask if you want to overwrite. Choose "Yes" to update with latest templates.
 
-**Solution**:
+### Verify shows missing files
+
+Run setup in Custom mode and select only the missing files:
+
 ```bash
-# Option 1: Let CLI overwrite them
-# Choose "Yes" when prompted
-
-# Option 2: Manual cleanup
-rm .vscode/settings.json
-rm .github/agents/mayor-west-mode.md
-rm .github/workflows/mayor-west-*.yml
-rm .github/ISSUE_TEMPLATE/mayor-task.md
-
-# Then run setup again
-npx mayor-west-mode setup
-```
-
-### Problem: Verify shows missing files
-
-**Cause**: Some files didn't create successfully
-
-**Solution**:
-```bash
-# Check which files are missing
-npx mayor-west-mode verify
-
-# Run setup again (selective)
 npx mayor-west-mode setup
 # Choose: Custom Setup
-# Select only missing files
-```
-
-### Problem: Node.js version too old
-
-**Cause**: Node.js < 18.0.0 installed
-
-**Solution**:
-```bash
-# Check current version
-node --version
-
-# Update Node.js (using nvm recommended)
-nvm install 18
-nvm use 18
-
-# Verify
-node --version  # Should be v18+
-
-# Run setup
-npx mayor-west-mode setup
-```
-
-### Problem: Permission denied when installing globally
-
-**Cause**: npm permissions issue
-
-**Solution**:
-```bash
-# Option 1: Use sudo (not recommended)
-sudo npm install -g mayor-west-mode
-
-# Option 2: Fix npm permissions (recommended)
-mkdir ~/.npm-global
-npm config set prefix '~/.npm-global'
-export PATH=~/.npm-global/bin:$PATH
-
-# Add to ~/.bashrc or ~/.zshrc for persistence
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
-
-# Then install
-npm install -g mayor-west-mode
+# Select: [missing files only]
 ```
 
 ---
 
 ## Advanced Usage
 
-### Custom Configuration per Repository
+### Team Rollout Script
 
-Different repos can have different settings:
-
-```bash
-# In repo-A (simple projects)
-npx mayor-west-mode setup
-# Choose: Minimal Setup, 10 iterations
-
-# In repo-B (complex projects)
-npx mayor-west-mode setup
-# Choose: Full Setup, 25 iterations
-```
-
-### Integration with CI/CD
-
-Verify setup in CI pipeline:
-
-```yaml
-# .github/workflows/verify-setup.yml
-name: Verify Mayor West Setup
-
-on: [push]
-
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: npx mayor-west-mode verify
-```
-
-### Automating Across Multiple Repos
-
-Setup multiple repos at once:
+Setup multiple repositories at once:
 
 ```bash
 #!/bin/bash
-
 for repo in repo-a repo-b repo-c; do
   cd ~/projects/$repo
-  echo "Setting up $repo..."
-  npx mayor-west-mode setup --type full
+  npx mayor-west-mode setup
   git add .vscode .github
-  git commit -m "Mayor West Mode: Add autonomous workflows"
+  git commit -m "[MAYOR] Add autonomous workflow configuration"
   git push origin main
 done
 ```
 
-### Custom Installation via GitHub
+### CI/CD Verification
 
-Clone from GitHub instead of NPM:
+Add to your CI pipeline:
 
+```yaml
+- name: Verify Mayor West Setup
+  run: npx mayor-west-mode verify
+```
+
+### Different Settings Per Repo
+
+Simple projects:
 ```bash
-git clone https://github.com/yourusername/mayor-west-mode.git
-cd mayor-west-mode
-npm install
-npm link
+# During setup, choose: 10 iterations
+```
 
-# Now available globally
-mayor-west-mode setup
+Complex projects:
+```bash
+# During setup, choose: 25 iterations
 ```
 
 ---
 
-## Support & Resources
+## Requirements
 
-**Getting Help**:
-- `npx mayor-west-mode help` - Show help
-- `npx mayor-west-mode examples` - Show examples
-- `npx mayor-west-mode status` - Show current status
-
-**Full Documentation**:
-- TRD (Technical Requirements Document)
-- README with detailed architecture
-- GitHub issues for bug reports
-
-**Community**:
-- GitHub Discussions for questions
-- Issues for bug reports
-- Contributions welcome!
+| Requirement | Version |
+|-------------|---------|
+| Node.js | 18.0.0+ |
+| Git | Any recent |
+| GitHub | Repository access |
+| Copilot | Pro or Business license |
 
 ---
 
-## Changelog
-
-### v1.0.0 (January 14, 2026)
-- ✅ Initial release
-- ✅ Full setup wizard
-- ✅ Verification checks
-- ✅ Examples and best practices
-- ✅ Multiple installation methods
-- ✅ Error handling and recovery
-
----
-
-## License
-
-MIT - Use freely in your projects
-
----
-
-**Ready to activate Mayor West Mode?**
+## Getting Help
 
 ```bash
-npx mayor-west-mode setup
+npx mayor-west-mode help      # CLI help
+npx mayor-west-mode examples  # Usage examples
+npx mayor-west-mode status    # Current state
 ```
 
-**Remember**: *"I don't ask for permission. I execute with confidence. I iterate when I fail. I deliver results through unconventional means."* — Mayor West
+**Documentation:**
+- [CLI-README.md](CLI-README.md) — Main README
+- [mayor_west_mode_trd.md](mayor_west_mode_trd.md) — Technical details
+- [mayor_west_quick_ref.md](mayor_west_quick_ref.md) — Quick reference
 
 ---
 
-*Last updated: January 14, 2026*  
-*Mayor West Mode v1.0.0 - Production Ready*
+*Mayor West Mode v1.0.0*
