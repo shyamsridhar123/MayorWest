@@ -337,33 +337,7 @@ jobs:
             core.setOutput('task_number', task.number);
             core.setOutput('found', 'true');
 
-      - name: Assign to Copilot
-        if: steps.find_task.outputs.found == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: \${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const taskNumber = \${{ steps.find_task.outputs.task_number }};
-            
-            try {
-              await github.rest.issues.addAssignees({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: taskNumber,
-                assignees: ['copilot']
-              });
-              console.log(\`Assigned issue #\${taskNumber} to @copilot\`);
-            } catch (error) {
-              await github.rest.issues.addAssignees({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: taskNumber,
-                assignees: ['copilot[bot]']
-              });
-              console.log(\`Assigned issue #\${taskNumber} to @copilot[bot]\`);
-            }
-
-      - name: Add Comment - Task Started
+      - name: Trigger Copilot via Comment
         if: steps.find_task.outputs.found == 'true'
         uses: actions/github-script@v7
         with:
@@ -375,8 +349,9 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: taskNumber,
-              body: '🤖 **Mayor West Mode Activated** 🤖\\n\\nCopilot is now executing this task. Stand by for autonomous implementation...'
+              body: '@copilot Please implement this task according to the acceptance criteria above.'
             });
+            console.log(\`Triggered Copilot on issue #\${taskNumber} via @copilot mention\`);
 `,
 
   '.github/ISSUE_TEMPLATE/mayor-task.md': () => `---
