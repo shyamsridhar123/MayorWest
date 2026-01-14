@@ -1,27 +1,15 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda",
-    "python-envs.pythonProjects": [],
-    
-    // ===== MAYOR WEST MODE: INSTRUCTION ENFORCEMENT =====
-    // Enable automatic instruction loading
-    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
-    
-    // Enable AGENTS.md support (multi-agent instructions)
-    "chat.useAgentsMdFile": true,
-    
-    // Enable nested AGENTS.md files in subfolders
-    "chat.useNestedAgentsMdFiles": true,
-    
-    // Specify additional instruction file locations
-    "chat.instructionsFilesLocations": [
-        ".github/instructions",
-        ".github/agents"
-    ],
-    
-    // Enable prompt files for reusable workflows
-    "chat.promptFiles": true,
-    "chat.promptFilesLocations": [
-        ".github/prompts"
-    ]
+  "chat.tools.autoApprove": true,
+  "chat.tools.terminal.autoApprove": {
+    "/^git\\s+(commit|push)\\b/": true,
+    "/^(npm|pnpm|yarn)\\s+(test|lint|build)\\b/": true,
+    "/^(npm|pnpm|yarn)\\s+run\\s+(test|lint|format)\\b/": true,
+    "rm": false,
+    "kill": false,
+    "git reset --hard": false,
+    "rm -rf": false
+  },
+  "chat.agent.iterationLimit": 15,
+  "chat.agent.maxTokensPerIteration": 4000,
+  "chat.agent.slowMode": false
 }
