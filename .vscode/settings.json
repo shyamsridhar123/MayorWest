@@ -1,0 +1,27 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": [],
+    
+    // ===== MAYOR WEST MODE: INSTRUCTION ENFORCEMENT =====
+    // Enable automatic instruction loading
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+    
+    // Enable AGENTS.md support (multi-agent instructions)
+    "chat.useAgentsMdFile": true,
+    
+    // Enable nested AGENTS.md files in subfolders
+    "chat.useNestedAgentsMdFiles": true,
+    
+    // Specify additional instruction file locations
+    "chat.instructionsFilesLocations": [
+        ".github/instructions",
+        ".github/agents"
+    ],
+    
+    // Enable prompt files for reusable workflows
+    "chat.promptFiles": true,
+    "chat.promptFilesLocations": [
+        ".github/prompts"
+    ]
+}

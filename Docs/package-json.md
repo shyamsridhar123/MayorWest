@@ -1,0 +1,55 @@
+{
+  "name": "mayor-west-mode",
+  "version": "1.0.0",
+  "description": "Autonomous GitHub Copilot development workflow CLI - inspired by Family Guy's Mayor Adam West",
+  "main": "index.js",
+  "bin": {
+    "mayor-west-mode": "./cli.js"
+  },
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node cli.js",
+    "setup": "node cli.js setup",
+    "verify": "node cli.js verify",
+    "help": "node cli.js help",
+    "examples": "node cli.js examples",
+    "status": "node cli.js status",
+    "dev": "node cli.js",
+    "test": "jest",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "cli",
+    "github",
+    "copilot",
+    "automation",
+    "workflow",
+    "autonomous",
+    "development",
+    "mayor-west"
+  ],
+  "author": "Engineering Team",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "inquirer": "^9.2.12",
+    "ora": "^8.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "jest": "^29.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/mayor-west-mode.git"
+  },
+  "homepage": "https://github.com/yourusername/mayor-west-mode#readme",
+  "bugs": {
+    "url": "https://github.com/yourusername/mayor-west-mode/issues"
+  }
+}
