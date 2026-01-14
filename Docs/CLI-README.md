@@ -4,6 +4,10 @@
 **Version**: 1.0.0  
 **Author**: Engineering Team
 
+[![npm version](https://img.shields.io/npm/v/mayor-west-mode.svg)](https://www.npmjs.com/package/mayor-west-mode)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+
 > *"I don't ask for permission. I execute with confidence."* — Mayor Adam West
 
 ---
