@@ -53,8 +53,8 @@ We welcome contributions! Please follow these steps:
 
 ```bash
 # Fork the repository on GitHub, then clone your fork
-git clone https://github.com/YOUR-USERNAME/MayorWest.git
-cd MayorWest
+git clone https://github.com/YOUR-USERNAME/mayor-west-mode.git
+cd mayor-west-mode
 ```
 
 ### 2. Create a Feature Branch
@@ -191,7 +191,8 @@ When editing file templates in `cli.js`:
 // Escape backticks in template literals
 `body: \`Message here\``
 
-// Double-escape regex in JSON
+// Double-escape regex in JSON (actual pattern: /^git\s+(commit|push)\b/)
+// In JSON template string, each backslash must be escaped:
 "pattern": "/^git\\\\s+(commit|push)\\\\b/"
 ```
 
@@ -210,7 +211,7 @@ When editing file templates in `cli.js`:
 
 ### Writing Tests
 
-- Use **Jest** (v29.7.0)
+- Use **Jest** (version specified in `package.json`)
 - Place tests in `*.test.js` files
 - Follow existing test patterns (see `cli.test.js`)
 
@@ -269,8 +270,8 @@ npm run test:watch
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/shyamsridhar123/MayorWest.git
-cd MayorWest
+git clone https://github.com/YOUR-USERNAME/mayor-west-mode.git
+cd mayor-west-mode
 
 # 2. Install dependencies
 npm install
@@ -318,7 +319,7 @@ npm run format
 
 ## Questions or Need Help?
 
-- Check existing [GitHub Issues](https://github.com/shyamsridhar123/MayorWest/issues)
+- Check existing GitHub Issues in the repository
 - Review the [documentation](Docs/)
 - Create a new issue with your question
 
