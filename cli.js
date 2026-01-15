@@ -372,19 +372,19 @@ jobs:
 `,
 
   '.github/workflows/mayor-west-orchestrator.yml': (options = {}) => `name: Mayor West Orchestrator
+# Autonomous task assignment and PR merge workflow
 
 on:
   workflow_dispatch:
+  issues:
+    types: [opened, labeled]
   pull_request:
-    types: [closed]
-    paths: []
-  schedule:
-    - cron: '*/15 * * * *'
+    types: [opened, synchronize, closed]
 
 permissions:
-  contents: read
+  contents: write
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   orchestrate:
@@ -419,21 +419,173 @@ jobs:
             core.setOutput('task_number', task.number);
             core.setOutput('found', 'true');
 
-      - name: Trigger Copilot via Comment
+      - name: Assign Copilot to Issue
         if: steps.find_task.outputs.found == 'true'
         uses: actions/github-script@v7
         with:
-          github-token: \${{ secrets.GITHUB_TOKEN }}
+          github-token: \${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const taskNumber = \${{ steps.find_task.outputs.task_number }};
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            // Step 1: Find Copilot agent ID using suggestedActors query
+            console.log('Looking for copilot coding agent...');
+            const findAgentQuery = \`
+              query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) {
+                  suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
+                    nodes {
+                      ... on Bot {
+                        id
+                        login
+                        __typename
+                      }
+                    }
+                  }
+                }
+              }
+            \`;
+            
+            const agentResponse = await github.graphql(findAgentQuery, { owner, repo });
+            const actors = agentResponse.repository.suggestedActors.nodes;
+            const copilotAgent = actors.find(actor => actor.login === 'copilot-swe-agent');
+            
+            if (!copilotAgent) {
+              console.log('Available actors:', actors.map(a => a.login).join(', '));
+              throw new Error('Copilot coding agent (copilot-swe-agent) not available');
+            }
+            
+            console.log(\`Found copilot agent with ID: \${copilotAgent.id}\`);
+            
+            // Step 2: Get issue ID and current assignees
+            const issueQuery = \`
+              query($owner: String!, $repo: String!, $issueNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issueNumber) {
+                    id
+                    assignees(first: 100) {
+                      nodes { id }
+                    }
+                  }
+                }
+              }
+            \`;
+            
+            const issueResponse = await github.graphql(issueQuery, { owner, repo, issueNumber: taskNumber });
+            const issueId = issueResponse.repository.issue.id;
+            const currentAssignees = issueResponse.repository.issue.assignees.nodes.map(a => a.id);
+            
+            // Step 3: Assign Copilot using replaceActorsForAssignable mutation
+            const actorIds = [copilotAgent.id, ...currentAssignees.filter(id => id !== copilotAgent.id)];
+            
+            const assignMutation = \`
+              mutation($assignableId: ID!, $actorIds: [ID!]!) {
+                replaceActorsForAssignable(input: {
+                  assignableId: $assignableId,
+                  actorIds: $actorIds
+                }) {
+                  __typename
+                }
+              }
+            \`;
+            
+            await github.graphql(assignMutation, { assignableId: issueId, actorIds });
+            console.log(\`Successfully assigned Copilot to issue #\${taskNumber}\`);
+            
+            // Step 4: Add comment with instructions
+            const commentBody = [
+              '**@copilot-swe-agent** assigned to this task.',
+              '',
+              '**Before starting, read:**',
+              '- \\`.github/copilot/instructions.md\\` - Your operating protocol',
+              '- \\`.github/copilot-instructions.md\\` - Project rules',
+              '',
+              '**Key requirements:**',
+              '1. Run \\`npm test\\` before committing',
+              '2. Use commit format: \\`[MAYOR] <description>\\`',
+              \`3. Include \\\\\\`Fixes #\${taskNumber}\\\\\\` in PR body\`,
+              '4. Never use destructive commands'
+            ].join('\\n');
             
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               issue_number: taskNumber,
-              body: '@copilot Please implement this task according to the acceptance criteria above.'
+              body: commentBody
             });
-            console.log(\`Triggered Copilot on issue #\${taskNumber} via @copilot mention\`);
+            console.log(\`Added instructions comment to issue #\${taskNumber}\`);
+
+  merge-copilot-prs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Find and Merge Copilot PRs
+        uses: actions/github-script@v7
+        with:
+          github-token: \${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            const { data: prs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              sort: 'created',
+              direction: 'asc'
+            });
+            
+            const copilotPRs = prs.filter(pr => {
+              const login = pr.user.login.toLowerCase();
+              return login === 'copilot' || login === 'copilot-swe-agent' || login.includes('copilot');
+            });
+            
+            if (copilotPRs.length === 0) {
+              console.log('No open Copilot PRs found');
+              return;
+            }
+            
+            for (const pr of copilotPRs) {
+              console.log(\`Processing PR #\${pr.number}: \${pr.title}\`);
+              
+              const { data: prDetails } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: pr.number
+              });
+              
+              if (prDetails.mergeable_state === 'dirty' || prDetails.mergeable_state === 'blocked') {
+                console.log(\`  Skipping: PR is \${prDetails.mergeable_state}\`);
+                continue;
+              }
+              
+              try {
+                await github.rest.pulls.createReview({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  event: 'APPROVE',
+                  body: 'Auto-approved by Mayor West Orchestrator'
+                });
+                console.log(\`  Approved PR #\${pr.number}\`);
+              } catch (error) {
+                console.log(\`  Could not approve: \${error.message}\`);
+              }
+              
+              try {
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  merge_method: 'squash'
+                });
+                console.log(\`  Merged PR #\${pr.number}\`);
+              } catch (error) {
+                console.log(\`  Could not merge: \${error.message}\`);
+              }
+            }
 `,
 
   '.github/ISSUE_TEMPLATE/mayor-task.md': (options = {}) => `---
