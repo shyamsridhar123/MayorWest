@@ -997,17 +997,27 @@ async function runSetupFlow() {
   console.log(chalk.cyan('Create a Fine-Grained Personal Access Token:\n'));
   console.log(chalk.gray('1. Go to: https://github.com/settings/tokens?type=beta'));
   console.log(chalk.gray('2. Click "Generate new token"'));
-  console.log(chalk.gray('3. Configure:'));
-  console.log(chalk.gray('   ├─ Token name: Mayor West Agent Token'));
-  console.log(chalk.gray('   ├─ Expiration: 90 days (or custom)'));
-  console.log(chalk.gray('   ├─ Repository access: Only select repositories'));
-  console.log(chalk.gray('   │  └─ Select: ' + chalk.cyan(`${gitHubInfo.owner}/${gitHubInfo.repo}`)));
-  console.log(chalk.gray('   └─ Permissions:'));
-  console.log(chalk.green('      ├─ Issues: Read and write'));
-  console.log(chalk.green('      ├─ Pull requests: Read and write'));
-  console.log(chalk.green('      ├─ Contents: Read and write'));
-  console.log(chalk.green('      └─ Metadata: Read-only (auto-selected)'));
-  console.log(chalk.gray('4. Click "Generate token" and copy it'));
+  console.log(chalk.gray('3. Configure token settings:'));
+  console.log(chalk.gray('   ├─ Token name: ' + chalk.white('Mayor West Agent Token')));
+  console.log(chalk.gray('   ├─ Expiration: ' + chalk.white('90 days') + chalk.gray(' (or custom)')));
+  console.log(chalk.gray('   ├─ Description: ' + chalk.white('Enables Copilot auto-assignment for Mayor West Mode')));
+  console.log(chalk.gray('   └─ Resource owner: ' + chalk.cyan(`${gitHubInfo.owner}`)));
+  console.log(chalk.gray(''));
+  console.log(chalk.gray('4. Repository access:'));
+  console.log(chalk.gray('   ├─ ◉ ' + chalk.white('Only select repositories')));
+  console.log(chalk.gray('   └─ Select: ' + chalk.cyan(`${gitHubInfo.owner}/${gitHubInfo.repo}`)));
+  console.log(chalk.gray(''));
+  console.log(chalk.gray('5. Repository permissions ' + chalk.yellow('(expand this section)') + ':'));
+  console.log(chalk.green('   ├─ Actions: ') + chalk.white('Read-only') + chalk.gray(' (view workflow runs)'));
+  console.log(chalk.green('   ├─ Contents: ') + chalk.white('Read and write') + chalk.gray(' (for PR merging)'));
+  console.log(chalk.green('   ├─ Issues: ') + chalk.white('Read and write') + chalk.gray(' (assign Copilot, add comments)'));
+  console.log(chalk.green('   ├─ Metadata: ') + chalk.white('Read-only') + chalk.gray(' (auto-selected, required)'));
+  console.log(chalk.green('   └─ Pull requests: ') + chalk.white('Read and write') + chalk.gray(' (for auto-merge)'));
+  console.log(chalk.gray(''));
+  console.log(chalk.gray('6. Account permissions: ' + chalk.white('No access needed') + chalk.gray(' (leave all as default)')));
+  console.log(chalk.gray(''));
+  console.log(chalk.gray('7. Click ' + chalk.white('"Generate token"') + ' and ' + chalk.red('copy it immediately!')));
+  console.log(chalk.yellow('   ⚠ You won\'t be able to see it again after leaving the page.'));
 
   const patPrompt = await inquirer.prompt([
     {
