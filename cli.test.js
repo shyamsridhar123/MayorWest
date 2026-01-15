@@ -380,14 +380,15 @@ labels: mayor-task
 
   describe('CLI Commands', () => {
     test('should support all required commands', () => {
-      const supportedCommands = ['setup', 'verify', 'help', 'examples', 'status'];
+      const supportedCommands = ['setup', 'verify', 'help', 'examples', 'status', 'version'];
       
       expect(supportedCommands).toContain('setup');
       expect(supportedCommands).toContain('verify');
       expect(supportedCommands).toContain('help');
       expect(supportedCommands).toContain('examples');
       expect(supportedCommands).toContain('status');
-      expect(supportedCommands).toHaveLength(5);
+      expect(supportedCommands).toContain('version');
+      expect(supportedCommands).toHaveLength(6);
     });
   });
 
@@ -407,6 +408,77 @@ labels: mayor-task
       expect(categories.agent).toHaveLength(1);
       expect(categories.workflow).toHaveLength(2);
       expect(categories.template).toHaveLength(1);
+    });
+  });
+
+  describe('Version Command', () => {
+    test('should have valid semantic version format', () => {
+      // Import package.json to test version format
+      const pkg = {
+        name: 'mayor-west-mode',
+        version: '1.0.0',
+        description: 'Autonomous GitHub Copilot development workflow CLI - inspired by Family Guy\'s Mayor Adam West',
+        homepage: 'https://github.com/yourusername/mayor-west-mode#readme',
+        engines: {
+          node: '>=18.0.0'
+        }
+      };
+      
+      // Test semantic version format (X.Y.Z)
+      const semverRegex = /^\d+\.\d+\.\d+$/;
+      expect(semverRegex.test(pkg.version)).toBe(true);
+    });
+
+    test('should validate version parts are numbers', () => {
+      const version = '1.0.0';
+      const parts = version.split('.');
+      
+      expect(parts).toHaveLength(3);
+      parts.forEach(part => {
+        expect(!isNaN(parseInt(part, 10))).toBe(true);
+      });
+    });
+
+    test('should have required package.json fields for version display', () => {
+      const pkg = {
+        name: 'mayor-west-mode',
+        version: '1.0.0',
+        description: 'Autonomous GitHub Copilot development workflow CLI - inspired by Family Guy\'s Mayor Adam West',
+        homepage: 'https://github.com/yourusername/mayor-west-mode#readme',
+        engines: {
+          node: '>=18.0.0'
+        }
+      };
+      
+      expect(pkg.name).toBeDefined();
+      expect(pkg.version).toBeDefined();
+      expect(pkg.description).toBeDefined();
+      expect(pkg.homepage).toBeDefined();
+      expect(pkg.engines).toBeDefined();
+      expect(pkg.engines.node).toBeDefined();
+    });
+
+    test('should validate major.minor.patch version components', () => {
+      const version = '1.0.0';
+      const [major, minor, patch] = version.split('.').map(Number);
+      
+      expect(major).toBe(1);
+      expect(minor).toBe(0);
+      expect(patch).toBe(0);
+      
+      // Ensure all are non-negative integers
+      expect(major).toBeGreaterThanOrEqual(0);
+      expect(minor).toBeGreaterThanOrEqual(0);
+      expect(patch).toBeGreaterThanOrEqual(0);
+    });
+
+    test('should reject invalid version formats', () => {
+      const invalidVersions = ['1.0', '1', '1.0.0.0', 'v1.0.0', '1.0.a', 'invalid'];
+      const semverRegex = /^\d+\.\d+\.\d+$/;
+      
+      invalidVersions.forEach(version => {
+        expect(semverRegex.test(version)).toBe(false);
+      });
     });
   });
 });

@@ -18,13 +18,14 @@ import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
+import pkg from './package.json' with { type: 'json' };
 
 // ============================================================================
 // CONFIGURATION & CONSTANTS
 // ============================================================================
 
 const MAYOR_WEST_CONFIG = {
-  version: '1.0.0',
+  version: pkg.version,
   name: 'Mayor West Mode',
   description: 'Autonomous GitHub Copilot development workflow',
 };
@@ -673,6 +674,9 @@ function showHelp() {
   console.log(chalk.yellow('  status'));
   console.log(chalk.gray('    Show current Mayor West Mode status\n'));
 
+  console.log(chalk.yellow('  version'));
+  console.log(chalk.gray('    Show version information\n'));
+
   console.log(chalk.cyan.bold('Examples:\n'));
   console.log(chalk.gray('  npx mayor-west-mode setup'));
   console.log(chalk.gray('  npx mayor-west-mode verify'));
@@ -755,6 +759,25 @@ function showStatus() {
   console.log('\n');
 }
 
+function showVersion() {
+  log.header('Mayor West Mode - Version Information');
+
+  console.log(chalk.cyan.bold('Package Information:\n'));
+  console.log(chalk.yellow('  Name:        ') + chalk.white(pkg.name));
+  console.log(chalk.yellow('  Version:     ') + chalk.white(pkg.version));
+  console.log(chalk.yellow('  Description: ') + chalk.gray(pkg.description));
+
+  console.log('\n' + chalk.cyan.bold('Repository:\n'));
+  console.log(chalk.gray('  ' + pkg.homepage));
+
+  console.log('\n' + chalk.cyan.bold('Node.js Engine:\n'));
+  console.log(chalk.gray('  Required: ' + pkg.engines.node));
+
+  console.log('\n' + chalk.gray('━'.repeat(60)));
+  console.log(chalk.cyan('  🤖 Eccentric. Autonomous. Effective.'));
+  console.log(chalk.gray('━'.repeat(60)) + '\n');
+}
+
 // ============================================================================
 // CLI ENTRY POINT
 // ============================================================================
@@ -778,6 +801,9 @@ async function main() {
         break;
       case 'status':
         showStatus();
+        break;
+      case 'version':
+        showVersion();
         break;
       default:
         console.log(chalk.red(`Unknown command: ${command}\n`));
