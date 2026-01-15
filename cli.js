@@ -160,6 +160,23 @@ function ensureDirectory(dir) {
   }
 }
 
+function openUrl(url) {
+  // Open URL in system default browser
+  const platform = process.platform;
+  try {
+    if (platform === 'win32') {
+      execSync(`start "" "${url}"`, { stdio: 'ignore', shell: true });
+    } else if (platform === 'darwin') {
+      execSync(`open "${url}"`, { stdio: 'ignore' });
+    } else {
+      execSync(`xdg-open "${url}"`, { stdio: 'ignore' });
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // ============================================================================
 // FILE TEMPLATES
 // ============================================================================
@@ -900,8 +917,8 @@ async function runSetupFlow() {
       const ghSpinner = ora('Configuring GitHub settings...').start();
       
       try {
-        // Enable auto-merge
-        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -f allow_auto_merge=true`, { stdio: 'pipe' });
+        // Enable auto-merge (use -F for boolean fields, not -f)
+        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -F allow_auto_merge=true --silent`, { stdio: 'pipe' });
         ghSpinner.succeed('Auto-merge enabled');
       } catch (e) {
         ghSpinner.fail('Could not enable auto-merge (may require admin access)');
@@ -909,7 +926,7 @@ async function runSetupFlow() {
 
       try {
         // Enable delete branch on merge
-        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -f delete_branch_on_merge=true`, { stdio: 'pipe' });
+        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -F delete_branch_on_merge=true --silent`, { stdio: 'pipe' });
         ora().succeed('Delete branch on merge enabled');
       } catch (e) {
         ora().fail('Could not enable delete branch on merge');
@@ -917,7 +934,7 @@ async function runSetupFlow() {
 
       try {
         // Enable squash merge
-        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -f allow_squash_merge=true`, { stdio: 'pipe' });
+        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -F allow_squash_merge=true --silent`, { stdio: 'pipe' });
         ora().succeed('Squash merge enabled');
       } catch (e) {
         ora().fail('Could not enable squash merge');
@@ -953,14 +970,9 @@ async function runSetupFlow() {
   ]);
 
   if (!workflowConfirm.workflowPermissionsSet) {
-    if (ghCliAvailable) {
-      try {
-        execSync(`gh browse --repo ${gitHubInfo.owner}/${gitHubInfo.repo} -- settings/actions`, { stdio: 'inherit' });
-      } catch (e) {
-        console.log(chalk.gray(`\n   Open: https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/actions`));
-      }
-    } else {
-      console.log(chalk.gray(`\n   Open: https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/actions`));
+    const actionsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/actions`;
+    if (!openUrl(actionsUrl)) {
+      console.log(chalk.gray(`\n   Open: ${actionsUrl}`));
     }
     
     await inquirer.prompt([
@@ -1007,14 +1019,9 @@ async function runSetupFlow() {
   ]);
 
   if (patPrompt.openTokenPage) {
-    if (ghCliAvailable) {
-      try {
-        execSync('gh browse -- https://github.com/settings/tokens?type=beta', { stdio: 'inherit' });
-      } catch (e) {
-        console.log(chalk.gray('\n   Open: https://github.com/settings/tokens?type=beta'));
-      }
-    } else {
-      console.log(chalk.gray('\n   Open: https://github.com/settings/tokens?type=beta'));
+    const tokenUrl = 'https://github.com/settings/tokens?type=beta';
+    if (!openUrl(tokenUrl)) {
+      console.log(chalk.gray(`\n   Open: ${tokenUrl}`));
     }
   }
 
@@ -1057,14 +1064,9 @@ async function runSetupFlow() {
       }
     }
   } else if (secretPrompt.secretMethod === 'manual') {
-    if (ghCliAvailable) {
-      try {
-        execSync(`gh browse --repo ${gitHubInfo.owner}/${gitHubInfo.repo} -- settings/secrets/actions/new`, { stdio: 'inherit' });
-      } catch (e) {
-        console.log(chalk.gray(`\n   Open: https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`));
-      }
-    } else {
-      console.log(chalk.gray(`\n   Open: https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`));
+    const secretsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`;
+    if (!openUrl(secretsUrl)) {
+      console.log(chalk.gray(`\n   Open: ${secretsUrl}`));
     }
     
     await inquirer.prompt([
