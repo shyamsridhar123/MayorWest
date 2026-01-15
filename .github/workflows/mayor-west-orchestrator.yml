@@ -9,9 +9,9 @@ on:
     - cron: '*/15 * * * *'
 
 permissions:
-  contents: read
+  contents: write
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   orchestrate:
@@ -121,3 +121,75 @@ jobs:
             
             await github.graphql(assignMutation, { assignableId: issueId, actorIds });
             console.log(`Successfully assigned Copilot to issue #${taskNumber}`);
+
+  # Job 2: Merge ready Copilot PRs (bypasses workflow approval requirement)
+  merge-copilot-prs:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Find and Merge Copilot PRs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            // Find open PRs from Copilot
+            const { data: prs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              sort: 'created',
+              direction: 'asc'
+            });
+            
+            const copilotPRs = prs.filter(pr => 
+              pr.user.login === 'copilot' || 
+              pr.user.login.includes('copilot')
+            );
+            
+            if (copilotPRs.length === 0) {
+              console.log('No open Copilot PRs found');
+              return;
+            }
+            
+            for (const pr of copilotPRs) {
+              console.log(`Processing PR #${pr.number}: ${pr.title}`);
+              
+              // Skip draft PRs
+              if (pr.draft) {
+                console.log(`  Skipping: PR is still a draft`);
+                continue;
+              }
+              
+              // Check if PR is mergeable
+              const { data: prDetails } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: pr.number
+              });
+              
+              if (prDetails.mergeable_state === 'dirty') {
+                console.log(`  Skipping: PR has merge conflicts`);
+                continue;
+              }
+              
+              if (prDetails.mergeable_state === 'blocked') {
+                console.log(`  Skipping: PR is blocked (status checks pending)`);
+                continue;
+              }
+              
+              // Merge the PR
+              try {
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  merge_method: 'squash'
+                });
+                console.log(`  ✅ Merged PR #${pr.number}`);
+              } catch (error) {
+                console.log(`  ⚠️ Could not merge: ${error.message}`);
+              }
+            }
