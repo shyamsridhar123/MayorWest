@@ -481,6 +481,7 @@ jobs:
       - name: Check for Audit Findings
         id: check_findings
         run: |
+          # Note: \$ escaping needed for GitHub Actions template literal → workflow YAML
           if [ -d ".mayor-west-audit" ] && [ "$(ls -A .mayor-west-audit)" ]; then
             echo "findings=true" >> \$GITHUB_OUTPUT
             echo "Found audit issues"
@@ -515,9 +516,16 @@ jobs:
               const titleMatch = content.match(/## Audit Finding: (.+)/);
               const category = titleMatch ? titleMatch[1] : 'unknown';
               
-              // Extract description from markdown
-              const descMatch = content.match(/\\*\\*Description\\*\\*:\\s*(.+?)\\n\\n/s);
-              const description = descMatch ? descMatch[1].trim() : '';
+              // Extract description from markdown (simple text extraction)
+              // Note: Using string concat to avoid template literal escaping issues in workflow
+              const lines = content.split('\\n');
+              let description = '';
+              for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('**Description**')) {
+                  description = lines[i + 1] || '';
+                  break;
+                }
+              }
               
               const issueTitle = '[MAYOR] Audit: ' + category + ' - ' + description.substring(0, 50) + '...';
               
