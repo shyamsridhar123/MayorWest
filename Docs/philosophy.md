@@ -2,6 +2,14 @@
 
 > *"I'm Mayor Adam West, and I approve this code."*
 
+<p align="center">
+  <img src="../Assets/Mayor-West-Keyboard.png" alt="Mayor West at the keyboard" width="500">
+</p>
+
+<p align="center">
+  <em>No hesitation. No approval dialogs. Just execution.</em>
+</p>
+
 ---
 
 ## The Absurd Hero
