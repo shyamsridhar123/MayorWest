@@ -1025,9 +1025,40 @@ async function runSetupFlow() {
     log.success('GH_AW_AGENT_TOKEN secret already configured!');
     console.log(chalk.gray('   └─ Copilot auto-assignment is ready to work.'));
   } else {
-    console.log(chalk.red.bold('\n⚠️  REQUIRED for Copilot auto-assignment!\n'));
-    console.log(chalk.white('The orchestrator workflow needs a PAT to assign Copilot to issues.'));
-    console.log(chalk.white('Without this, issues won\'t be automatically picked up by Copilot.\n'));
+    // Check for token in environment variable
+    const envToken = process.env.MAYOR_WEST_TOKEN || process.env.GH_AW_AGENT_TOKEN;
+    
+    if (envToken && ghCliAvailable) {
+      console.log(chalk.cyan('Found token in environment variable!'));
+      const useEnvToken = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'useIt',
+          message: 'Use MAYOR_WEST_TOKEN from environment to configure this repo?',
+          default: true,
+        },
+      ]);
+
+      if (useEnvToken.useIt) {
+        try {
+          execSync(`gh secret set GH_AW_AGENT_TOKEN --body "${envToken}" --repo ${gitHubInfo.owner}/${gitHubInfo.repo}`, { stdio: 'pipe' });
+          log.success('Secret GH_AW_AGENT_TOKEN added from environment variable!');
+          secretExists = true;
+        } catch (e) {
+          log.error('Failed to add secret from environment variable.');
+        }
+      }
+    }
+
+    if (!secretExists) {
+      console.log(chalk.red.bold('\n⚠️  REQUIRED for Copilot auto-assignment!\n'));
+      console.log(chalk.white('The orchestrator workflow needs a PAT to assign Copilot to issues.'));
+      console.log(chalk.white('Without this, issues won\'t be automatically picked up by Copilot.\n'));
+      
+      console.log(chalk.yellow('💡 Pro tip: Set MAYOR_WEST_TOKEN environment variable to skip this step!\n'));
+      console.log(chalk.gray('   PowerShell: $env:MAYOR_WEST_TOKEN = "ghp_xxxxx"'));
+      console.log(chalk.gray('   Bash:       export MAYOR_WEST_TOKEN="ghp_xxxxx"'));
+      console.log(chalk.gray('   Or add to your shell profile for permanent use.\n'));
 
     // Ask if they have an existing token
     const existingTokenPrompt = await inquirer.prompt([
@@ -1201,6 +1232,7 @@ async function runSetupFlow() {
       }
     } else {
       log.warning('Skipped PAT setup - Copilot auto-assignment will not work');
+    }
     }
   }
 
