@@ -56,6 +56,11 @@ const FILES_TO_CREATE = {
     category: 'template',
     critical: false,
   },
+  '.github/mayor-west.yml': {
+    displayName: 'Security Config',
+    category: 'configuration',
+    critical: true,
+  },
 };
 
 // ============================================================================
@@ -374,9 +379,9 @@ on:
     - cron: '*/15 * * * *'
 
 permissions:
-  contents: read
+  contents: write
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   orchestrate:
@@ -501,6 +506,197 @@ jobs:
             
             const assignedLogins = assignResponse.replaceActorsForAssignable.assignable.assignees.nodes.map(a => a.login);
             console.log(\\\`✅ Assigned to issue #\\\${taskNumber}: \\\${assignedLogins.join(', ')}\\\`);
+
+  merge-copilot-prs:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Read Mayor West Config
+        id: config
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = '.github/mayor-west.yml';
+            
+            // Default config if file doesn't exist
+            let config = {
+              enabled: true,
+              protected_paths: [
+                '.github/workflows/**',
+                '.github/mayor-west.yml',
+                'package.json',
+                'package-lock.json'
+              ],
+              settings: {
+                merge_method: 'squash',
+                audit_comments: true
+              }
+            };
+            
+            try {
+              if (fs.existsSync(path)) {
+                const content = fs.readFileSync(path, 'utf8');
+                // Simple YAML parsing for key fields
+                const enabledMatch = content.match(/^enabled:\\s*(true|false)/m);
+                if (enabledMatch) {
+                  config.enabled = enabledMatch[1] === 'true';
+                }
+                
+                // Extract protected paths
+                const pathsMatch = content.match(/protected_paths:\\s*\\n([\\s\\S]*?)(?=\\n\\w|$)/);
+                if (pathsMatch) {
+                  const pathLines = pathsMatch[1].match(/^\\s*-\\s*"([^"]+)"/gm) || [];
+                  config.protected_paths = pathLines.map(line => {
+                    const match = line.match(/"([^"]+)"/);
+                    return match ? match[1] : null;
+                  }).filter(Boolean);
+                }
+              }
+            } catch (e) {
+              console.log('Using default config:', e.message);
+            }
+            
+            console.log('Config:', JSON.stringify(config, null, 2));
+            core.setOutput('enabled', config.enabled);
+            core.setOutput('protected_paths', JSON.stringify(config.protected_paths));
+            return config;
+
+      - name: Find and Merge Copilot PRs
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: \${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const protectedPaths = JSON.parse('\${{ steps.config.outputs.protected_paths }}');
+            
+            // Helper function to check if a path matches any protected pattern
+            function isProtectedPath(filePath, patterns) {
+              for (const pattern of patterns) {
+                // Convert glob to regex
+                const regexPattern = pattern
+                  .replace(/\\*\\*/g, '<<<DOUBLESTAR>>>')
+                  .replace(/\\*/g, '[^/]*')
+                  .replace(/<<<DOUBLESTAR>>>/g, '.*')
+                  .replace(/\\./g, '\\\\.')
+                  .replace(/\\?/g, '.');
+                
+                const regex = new RegExp(\\\`^\\\${regexPattern}$\\\`);
+                if (regex.test(filePath)) {
+                  return true;
+                }
+              }
+              return false;
+            }
+            
+            // Find open PRs from Copilot
+            const { data: prs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 10
+            });
+            
+            const copilotPRs = prs.filter(pr => 
+              pr.user.login === 'copilot' || 
+              pr.user.login === 'copilot[bot]' ||
+              pr.user.login === 'copilot-swe-agent[bot]'
+            );
+            
+            console.log(\\\`Found \\\${copilotPRs.length} Copilot PRs to process\\\`);
+            
+            for (const pr of copilotPRs) {
+              console.log(\\\`\\nProcessing PR #\\\${pr.number}: \\\${pr.title}\\\`);
+              
+              // Check if PR is draft
+              if (pr.draft) {
+                console.log('  ⏸️  Skipping draft PR');
+                continue;
+              }
+              
+              // Get files changed in this PR
+              const { data: files } = await github.rest.pulls.listFiles({
+                owner,
+                repo,
+                pull_number: pr.number
+              });
+              
+              const changedFiles = files.map(f => f.filename);
+              console.log(\\\`  Changed files: \\\${changedFiles.join(', ')}\\\`);
+              
+              // Check for protected paths
+              const protectedFiles = changedFiles.filter(f => isProtectedPath(f, protectedPaths));
+              
+              if (protectedFiles.length > 0) {
+                console.log(\\\`  🛡️  PR touches protected paths: \\\${protectedFiles.join(', ')}\\\`);
+                console.log('  ⏸️  Skipping auto-merge - requires human review');
+                
+                // Add comment explaining why it wasn't merged
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  body: \\\`## 🛡️ Mayor West Security Review Required
+                  
+This PR touches protected paths and requires human review before merge:
+
+\\\${protectedFiles.map(f => \\\`- \\\\\\\`\\\${f}\\\\\\\`\\\`).join('\\n')}
+
+**Protected paths are defined in** \\\\\\\`.github/mayor-west.yml\\\\\\\`
+
+Once reviewed, you can merge this PR manually.\\\`
+                });
+                continue;
+              }
+              
+              // Check if mergeable
+              const { data: prDetails } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: pr.number
+              });
+              
+              if (prDetails.mergeable_state !== 'clean') {
+                console.log(\\\`  ⚠️  PR is not in clean mergeable state: \\\${prDetails.mergeable_state}\\\`);
+                continue;
+              }
+              
+              // Merge the PR
+              try {
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  merge_method: 'squash',
+                  commit_title: \\\`[MAYOR] \\\${pr.title} (#\\\${pr.number})\\\`
+                });
+                
+                console.log(\\\`  ✅ Merged PR #\\\${pr.number}\\\`);
+                
+                // Add audit comment
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  body: \\\`## 🤠 Mayor West Auto-Merged
+                  
+**Merged at:** \\\${new Date().toISOString()}
+**Changed files:** \\\${changedFiles.length}
+**Method:** squash
+
+---
+*Autonomous merge by Mayor West Orchestrator*\\\`
+                });
+                
+              } catch (mergeError) {
+                console.log(\\\`  ❌ Failed to merge: \\\${mergeError.message}\\\`);
+              }
+            }
 `,
 
   '.github/ISSUE_TEMPLATE/mayor-task.md': () => `---
@@ -590,6 +786,55 @@ Task is complete when:
 - [ ] Code linting passes (\`npm run lint\` returns exit code 0)
 - [ ] PR created with description
 - [ ] PR ready for merge
+`,
+
+  '.github/mayor-west.yml': () => `# Mayor West Mode Security Configuration
+# This file controls autonomous merge behavior for Copilot PRs
+
+# Enable/disable Mayor West Mode (set to false to pause all auto-merges)
+enabled: true
+
+# Protected paths - PRs touching these files require human review
+# Uses glob patterns matching file paths in the PR
+protected_paths:
+  # Critical infrastructure
+  - ".github/workflows/**"        # Workflow modifications need human review
+  - ".github/mayor-west.yml"      # This config file itself
+  
+  # Package management
+  - "package.json"                # Dependency changes
+  - "package-lock.json"           # Lock file changes
+  - "yarn.lock"                   # Yarn lock file
+  - "pnpm-lock.yaml"              # pnpm lock file
+  
+  # Secrets and environment
+  - "**/.env*"                    # Environment files
+  - "**/secrets/**"               # Any secrets directory
+  - "**/*.pem"                    # Certificates
+  - "**/*.key"                    # Private keys
+
+# Settings for auto-merge behavior
+settings:
+  # Merge method: squash, merge, or rebase
+  merge_method: squash
+  
+  # Delete branch after merge
+  delete_branch: true
+  
+  # Require all status checks to pass
+  require_status_checks: true
+  
+  # Add audit comment to merged PRs
+  audit_comments: true
+
+# Audit log settings
+audit:
+  # Log all Copilot merge events to a file
+  log_to_file: false
+  log_path: ".github/mayor-west-audit.log"
+  
+  # Add comment to PR with merge details
+  comment_on_merge: true
 `,
 };
 
@@ -906,6 +1151,12 @@ function showHelp() {
   console.log(chalk.yellow('  configure'));
   console.log(chalk.gray('    Configure GitHub repository settings (auto-merge, permissions, etc.)\n'));
 
+  console.log(chalk.yellow('  pause'));
+  console.log(chalk.gray('    Pause autonomous mode (disable auto-merge for Copilot PRs)\n'));
+
+  console.log(chalk.yellow('  resume'));
+  console.log(chalk.gray('    Resume autonomous mode (re-enable auto-merge)\n'));
+
   console.log(chalk.yellow('  help'));
   console.log(chalk.gray('    Show this help message\n'));
 
@@ -921,7 +1172,8 @@ function showHelp() {
   console.log(chalk.cyan.bold('Examples:\n'));
   console.log(chalk.gray('  npx mayor-west-mode setup'));
   console.log(chalk.gray('  npx mayor-west-mode verify'));
-  console.log(chalk.gray('  npx mayor-west-mode examples\n'));
+  console.log(chalk.gray('  npx mayor-west-mode pause'));
+  console.log(chalk.gray('  npx mayor-west-mode resume\n'));
 }
 
 function showExamples() {
@@ -1105,6 +1357,131 @@ async function runConfigureFlow() {
   log.success('Configuration complete! Run: npx mayor-west-mode verify');
 }
 
+// ============================================================================
+// PAUSE/RESUME COMMANDS
+// ============================================================================
+
+async function runPauseFlow() {
+  log.header('Pausing Mayor West Mode');
+
+  const configPath = '.github/mayor-west.yml';
+  
+  if (!fs.existsSync(configPath)) {
+    log.error('Mayor West config not found. Run setup first: npx mayor-west-mode setup');
+    process.exit(1);
+  }
+
+  const spinner = ora('Updating configuration...').start();
+
+  try {
+    let content = fs.readFileSync(configPath, 'utf8');
+    
+    // Update enabled: true to enabled: false
+    if (content.includes('enabled: false')) {
+      spinner.warn('Mayor West Mode is already paused');
+      return;
+    }
+
+    content = content.replace(/^enabled:\s*true/m, 'enabled: false');
+    fs.writeFileSync(configPath, content);
+
+    spinner.succeed('Mayor West Mode paused');
+
+    console.log('\n' + chalk.yellow('🛑 Auto-merge is now DISABLED'));
+    console.log(chalk.gray('  Copilot PRs will not be automatically merged.'));
+    console.log(chalk.gray('  Manual review is required for all PRs.\n'));
+    
+    console.log(chalk.cyan('To resume:'));
+    console.log(chalk.gray('  npx mayor-west-mode resume\n'));
+
+    // Prompt to commit the change
+    const { shouldCommit } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'shouldCommit',
+        message: 'Commit this change to the repository?',
+        default: true,
+      },
+    ]);
+
+    if (shouldCommit) {
+      const commitSpinner = ora('Committing change...').start();
+      try {
+        execSync(`git add ${configPath}`, { stdio: 'ignore' });
+        execSync('git commit -m "[MAYOR] Pause autonomous mode"', { stdio: 'ignore' });
+        execSync('git push', { stdio: 'ignore' });
+        commitSpinner.succeed('Change committed and pushed');
+      } catch (e) {
+        commitSpinner.fail('Failed to commit: ' + e.message);
+      }
+    }
+
+  } catch (e) {
+    spinner.fail('Failed to pause: ' + e.message);
+    process.exit(1);
+  }
+}
+
+async function runResumeFlow() {
+  log.header('Resuming Mayor West Mode');
+
+  const configPath = '.github/mayor-west.yml';
+  
+  if (!fs.existsSync(configPath)) {
+    log.error('Mayor West config not found. Run setup first: npx mayor-west-mode setup');
+    process.exit(1);
+  }
+
+  const spinner = ora('Updating configuration...').start();
+
+  try {
+    let content = fs.readFileSync(configPath, 'utf8');
+    
+    // Update enabled: false to enabled: true
+    if (content.includes('enabled: true') && !content.includes('enabled: false')) {
+      spinner.warn('Mayor West Mode is already active');
+      return;
+    }
+
+    content = content.replace(/^enabled:\s*false/m, 'enabled: true');
+    fs.writeFileSync(configPath, content);
+
+    spinner.succeed('Mayor West Mode resumed');
+
+    console.log('\n' + chalk.green('🚀 Auto-merge is now ENABLED'));
+    console.log(chalk.gray('  Copilot PRs will be automatically merged (except protected paths).\n'));
+    
+    console.log(chalk.cyan('To pause:'));
+    console.log(chalk.gray('  npx mayor-west-mode pause\n'));
+
+    // Prompt to commit the change
+    const { shouldCommit } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'shouldCommit',
+        message: 'Commit this change to the repository?',
+        default: true,
+      },
+    ]);
+
+    if (shouldCommit) {
+      const commitSpinner = ora('Committing change...').start();
+      try {
+        execSync(`git add ${configPath}`, { stdio: 'ignore' });
+        execSync('git commit -m "[MAYOR] Resume autonomous mode"', { stdio: 'ignore' });
+        execSync('git push', { stdio: 'ignore' });
+        commitSpinner.succeed('Change committed and pushed');
+      } catch (e) {
+        commitSpinner.fail('Failed to commit: ' + e.message);
+      }
+    }
+
+  } catch (e) {
+    spinner.fail('Failed to resume: ' + e.message);
+    process.exit(1);
+  }
+}
+
 function showStatus() {
   log.header('Mayor West Mode Status');
 
@@ -1123,6 +1500,31 @@ function showStatus() {
     const status = exists ? chalk.green('✓') : chalk.red('✗');
     console.log(chalk.gray(`  ${status} ${config.displayName}`));
   });
+
+  // Check security config status
+  const configPath = '.github/mayor-west.yml';
+  if (fs.existsSync(configPath)) {
+    console.log(chalk.cyan('\nSecurity Configuration:\n'));
+    try {
+      const content = fs.readFileSync(configPath, 'utf8');
+      const isEnabled = content.includes('enabled: true') && !content.includes('enabled: false');
+      
+      if (isEnabled) {
+        console.log(chalk.green('  🚀 Autonomous Mode: ACTIVE'));
+        console.log(chalk.gray('     Copilot PRs will auto-merge (except protected paths)'));
+      } else {
+        console.log(chalk.yellow('  🛑 Autonomous Mode: PAUSED'));
+        console.log(chalk.gray('     All PRs require manual review'));
+      }
+      
+      // Count protected paths
+      const pathMatches = content.match(/^\s*-\s*"/gm);
+      const pathCount = pathMatches ? pathMatches.length : 0;
+      console.log(chalk.gray(`  🛡️  Protected paths: ${pathCount} patterns defined`));
+    } catch (e) {
+      console.log(chalk.red('  ⚠️  Could not read security config'));
+    }
+  }
 
   console.log('\n');
 }
@@ -1163,6 +1565,12 @@ async function main() {
         break;
       case 'configure':
         await runConfigureFlow();
+        break;
+      case 'pause':
+        await runPauseFlow();
+        break;
+      case 'resume':
+        await runResumeFlow();
         break;
       case 'help':
         showHelp();
