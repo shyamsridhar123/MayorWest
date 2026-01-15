@@ -5,5 +5,7 @@
 # Repository owner - authorized for auto-merge
 * @shyamsridhar123
 
-# Copilot agent - authorized for auto-merge
+# Copilot agents - authorized for auto-merge
+# copilot-swe-agent is the GitHub App that creates PRs
 * @copilot
+* @copilot-swe-agent

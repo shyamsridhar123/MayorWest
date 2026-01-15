@@ -332,8 +332,8 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    # Layer 1: Only run for Copilot PRs
-    if: github.actor == 'copilot' || github.actor == 'copilot[bot]'
+    # Layer 1: Only run for Copilot PRs (copilot-swe-agent is the GitHub App actor)
+    if: github.actor == 'copilot-swe-agent' || github.actor == 'copilot' || github.actor == 'copilot[bot]'
     
     steps:
       - name: Checkout repository
@@ -1022,8 +1022,10 @@ audit:
 # Repository owner - authorized for auto-merge  
 * @${owner}
 
-# Copilot agent - authorized for auto-merge
+# Copilot agents - authorized for auto-merge
+# copilot-swe-agent is the GitHub App that creates PRs
 * @copilot
+* @copilot-swe-agent
 `;
   },
 };
