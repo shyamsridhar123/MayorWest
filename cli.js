@@ -783,6 +783,16 @@ async function runSetupFlow() {
   log.success(`GitHub repository: ${gitHubInfo.owner}/${gitHubInfo.repo}`);
   log.divider();
 
+  // Check for gh CLI
+  let ghCliAvailable = false;
+  try {
+    execSync('gh auth status', { stdio: 'pipe' });
+    ghCliAvailable = true;
+    log.success('GitHub CLI authenticated');
+  } catch (e) {
+    log.warning('GitHub CLI not authenticated (some features require manual setup)');
+  }
+
   // Step 3: Prompt for configuration
   const answers = await inquirer.prompt([
     {
@@ -846,7 +856,7 @@ async function runSetupFlow() {
   }
 
   // Step 4: Create files
-  log.header('Creating Configuration Files');
+  log.header('📁 Step 1: Creating Configuration Files');
 
   const spinner = ora('Creating files...').start();
   let created = 0;
@@ -867,36 +877,297 @@ async function runSetupFlow() {
   log.success(`Created ${created} configuration files`);
   log.divider();
 
-  // Step 5: Next steps
+  // Step 5: GitHub Repository Settings
+  log.header('⚙️  Step 2: GitHub Repository Settings');
+
+  if (ghCliAvailable) {
+    const configureGitHub = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'autoConfigureSettings',
+        message: 'Automatically configure GitHub repository settings?',
+        default: true,
+      },
+    ]);
+
+    if (configureGitHub.autoConfigureSettings) {
+      const ghSpinner = ora('Configuring GitHub settings...').start();
+      
+      try {
+        // Enable auto-merge
+        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -f allow_auto_merge=true`, { stdio: 'pipe' });
+        ghSpinner.succeed('Auto-merge enabled');
+      } catch (e) {
+        ghSpinner.fail('Could not enable auto-merge (may require admin access)');
+      }
+
+      try {
+        // Enable delete branch on merge
+        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -f delete_branch_on_merge=true`, { stdio: 'pipe' });
+        ora().succeed('Delete branch on merge enabled');
+      } catch (e) {
+        ora().fail('Could not enable delete branch on merge');
+      }
+
+      try {
+        // Enable squash merge
+        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} -X PATCH -f allow_squash_merge=true`, { stdio: 'pipe' });
+        ora().succeed('Squash merge enabled');
+      } catch (e) {
+        ora().fail('Could not enable squash merge');
+      }
+    }
+  } else {
+    console.log(chalk.yellow('\nManual configuration required:'));
+    console.log(chalk.gray('   GitHub → Settings → General'));
+    console.log(chalk.gray('   ├─ ☑ Allow auto-merge'));
+    console.log(chalk.gray('   ├─ ☑ Automatically delete head branches'));
+    console.log(chalk.gray('   └─ ☑ Allow squash merging'));
+  }
+
+  log.divider();
+
+  // Step 6: Workflow Permissions
+  log.header('🔐 Step 3: Workflow Permissions');
+
+  console.log(chalk.cyan('\nCRITICAL: Enable these settings for autonomous operation:\n'));
+  console.log(chalk.white('1. Workflow Permissions:'));
+  console.log(chalk.gray('   GitHub → Settings → Actions → General'));
+  console.log(chalk.gray('   └─ Workflow permissions:'));
+  console.log(chalk.green('      ◉ Read and write permissions'));
+  console.log(chalk.green('      ☑ Allow GitHub Actions to create and approve pull requests'));
+
+  const workflowConfirm = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'workflowPermissionsSet',
+      message: 'Have you enabled workflow permissions? (Open browser to configure)',
+      default: false,
+    },
+  ]);
+
+  if (!workflowConfirm.workflowPermissionsSet) {
+    if (ghCliAvailable) {
+      try {
+        execSync(`gh browse --repo ${gitHubInfo.owner}/${gitHubInfo.repo} -- settings/actions`, { stdio: 'inherit' });
+      } catch (e) {
+        console.log(chalk.gray(`\n   Open: https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/actions`));
+      }
+    } else {
+      console.log(chalk.gray(`\n   Open: https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/actions`));
+    }
+    
+    await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'continue',
+        message: 'Press Enter when ready to continue...',
+        default: true,
+      },
+    ]);
+  }
+
+  log.divider();
+
+  // Step 7: PAT Token Setup (CRITICAL for Copilot assignment)
+  log.header('🔑 Step 4: Personal Access Token (PAT) Setup');
+
+  console.log(chalk.red.bold('\n⚠️  REQUIRED for Copilot auto-assignment!\n'));
+  console.log(chalk.white('The orchestrator workflow needs a PAT to assign Copilot to issues.'));
+  console.log(chalk.white('Without this, issues won\'t be automatically picked up by Copilot.\n'));
+
+  console.log(chalk.cyan('Create a Fine-Grained Personal Access Token:\n'));
+  console.log(chalk.gray('1. Go to: https://github.com/settings/tokens?type=beta'));
+  console.log(chalk.gray('2. Click "Generate new token"'));
+  console.log(chalk.gray('3. Configure:'));
+  console.log(chalk.gray('   ├─ Token name: Mayor West Agent Token'));
+  console.log(chalk.gray('   ├─ Expiration: 90 days (or custom)'));
+  console.log(chalk.gray('   ├─ Repository access: Only select repositories'));
+  console.log(chalk.gray('   │  └─ Select: ' + chalk.cyan(`${gitHubInfo.owner}/${gitHubInfo.repo}`)));
+  console.log(chalk.gray('   └─ Permissions:'));
+  console.log(chalk.green('      ├─ Issues: Read and write'));
+  console.log(chalk.green('      ├─ Pull requests: Read and write'));
+  console.log(chalk.green('      ├─ Contents: Read and write'));
+  console.log(chalk.green('      └─ Metadata: Read-only (auto-selected)'));
+  console.log(chalk.gray('4. Click "Generate token" and copy it'));
+
+  const patPrompt = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'openTokenPage',
+      message: 'Open GitHub token creation page in browser?',
+      default: true,
+    },
+  ]);
+
+  if (patPrompt.openTokenPage) {
+    if (ghCliAvailable) {
+      try {
+        execSync('gh browse -- https://github.com/settings/tokens?type=beta', { stdio: 'inherit' });
+      } catch (e) {
+        console.log(chalk.gray('\n   Open: https://github.com/settings/tokens?type=beta'));
+      }
+    } else {
+      console.log(chalk.gray('\n   Open: https://github.com/settings/tokens?type=beta'));
+    }
+  }
+
+  console.log(chalk.cyan('\n5. Add the token as a repository secret:\n'));
+  console.log(chalk.gray(`   GitHub → ${gitHubInfo.owner}/${gitHubInfo.repo} → Settings → Secrets → Actions`));
+  console.log(chalk.gray('   └─ New repository secret:'));
+  console.log(chalk.green('      Name: GH_AW_AGENT_TOKEN'));
+  console.log(chalk.green('      Value: <paste your token>'));
+
+  const secretPrompt = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'secretMethod',
+      message: 'How would you like to add the secret?',
+      choices: [
+        { name: 'I\'ll add it manually in GitHub', value: 'manual' },
+        { name: 'Use gh CLI to add it now (paste token)', value: 'cli' },
+        { name: 'Skip for now (auto-assignment won\'t work)', value: 'skip' },
+      ],
+    },
+  ]);
+
+  if (secretPrompt.secretMethod === 'cli' && ghCliAvailable) {
+    const tokenInput = await inquirer.prompt([
+      {
+        type: 'password',
+        name: 'token',
+        message: 'Paste your PAT token:',
+        mask: '*',
+      },
+    ]);
+
+    if (tokenInput.token) {
+      try {
+        execSync(`gh secret set GH_AW_AGENT_TOKEN --body "${tokenInput.token}" --repo ${gitHubInfo.owner}/${gitHubInfo.repo}`, { stdio: 'pipe' });
+        log.success('Secret GH_AW_AGENT_TOKEN added successfully!');
+      } catch (e) {
+        log.error('Failed to add secret. Please add it manually.');
+        console.log(chalk.gray(`   https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`));
+      }
+    }
+  } else if (secretPrompt.secretMethod === 'manual') {
+    if (ghCliAvailable) {
+      try {
+        execSync(`gh browse --repo ${gitHubInfo.owner}/${gitHubInfo.repo} -- settings/secrets/actions/new`, { stdio: 'inherit' });
+      } catch (e) {
+        console.log(chalk.gray(`\n   Open: https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`));
+      }
+    } else {
+      console.log(chalk.gray(`\n   Open: https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`));
+    }
+    
+    await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'continue',
+        message: 'Press Enter when you\'ve added the secret...',
+        default: true,
+      },
+    ]);
+  } else {
+    log.warning('Skipped PAT setup - Copilot auto-assignment will not work');
+  }
+
+  log.divider();
+
+  // Step 8: Copilot Access Verification
+  log.header('🤖 Step 5: Copilot Access');
+
+  console.log(chalk.cyan('\nVerify Copilot is available for your repository:\n'));
+  console.log(chalk.gray('1. GitHub Copilot subscription required'));
+  console.log(chalk.gray('   └─ Individual, Business, or Enterprise plan'));
+  console.log(chalk.gray('2. Copilot must be enabled for this repository'));
+  console.log(chalk.gray('   └─ Org settings or personal settings'));
+  console.log(chalk.gray('3. Copilot Workspace (coding agent) must be enabled'));
+  console.log(chalk.gray('   └─ github.com/features/copilot → Enable in repo settings'));
+
+  if (ghCliAvailable) {
+    try {
+      // Try to check if copilot-swe-agent is available
+      const result = execSync(`gh api graphql -f query='{ repository(owner:"${gitHubInfo.owner}", name:"${gitHubInfo.repo}") { suggestedActors(first:100, capabilities:CAN_BE_ASSIGNED) { nodes { ... on Bot { login } } } } }' --jq '.data.repository.suggestedActors.nodes[].login' 2>/dev/null || echo ""`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+      if (result.includes('copilot-swe-agent')) {
+        log.success('Copilot coding agent is available for this repository!');
+      } else {
+        log.warning('Copilot coding agent not detected. Ensure Copilot is enabled for this repo.');
+      }
+    } catch (e) {
+      log.info('Could not verify Copilot access (this is normal for new repos)');
+    }
+  }
+
+  log.divider();
+
+  // Step 9: Commit and push
+  log.header('📤 Step 6: Commit and Push');
+
+  const commitPrompt = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'autoCommit',
+      message: 'Commit and push the configuration files now?',
+      default: true,
+    },
+  ]);
+
+  if (commitPrompt.autoCommit) {
+    try {
+      execSync('git add .vscode .github AGENTS.md .versionrc.json CHANGELOG.md 2>/dev/null || git add .', { stdio: 'pipe' });
+      execSync('git commit -m "[MAYOR] Initialize Mayor West Mode autonomous workflows"', { stdio: 'pipe' });
+      log.success('Changes committed');
+      
+      try {
+        execSync('git push', { stdio: 'pipe' });
+        log.success('Changes pushed to remote');
+      } catch (e) {
+        log.warning('Could not push (try: git push origin main)');
+      }
+    } catch (e) {
+      if (e.message.includes('nothing to commit')) {
+        log.info('No changes to commit');
+      } else {
+        log.warning('Could not commit automatically');
+        console.log(chalk.gray('   git add .vscode .github AGENTS.md'));
+        console.log(chalk.gray('   git commit -m "[MAYOR] Initialize Mayor West Mode"'));
+        console.log(chalk.gray('   git push'));
+      }
+    }
+  } else {
+    console.log(chalk.gray('\nCommit manually:'));
+    console.log(chalk.gray('   git add .vscode .github AGENTS.md .versionrc.json CHANGELOG.md'));
+    console.log(chalk.gray('   git commit -m "[MAYOR] Initialize Mayor West Mode"'));
+    console.log(chalk.gray('   git push'));
+  }
+
+  log.divider();
+
+  // Step 10: Final Summary
   log.header('🎉 Setup Complete!');
 
-  console.log(chalk.cyan.bold('Next Steps:\n'));
-  console.log('1. Review the generated files:');
-  Object.keys(filesToCreate).forEach(file => {
-    console.log(chalk.gray(`   ${file}`));
-  });
+  console.log(chalk.green.bold('\n✓ Mayor West Mode is ready for autonomous operation!\n'));
 
-  console.log('\n2. Configure GitHub repository settings:');
-  console.log(chalk.cyan('   a) Enable auto-merge:'));
-  console.log(chalk.gray('      GitHub → Settings → Pull Requests → Allow auto-merge'));
-  console.log(chalk.cyan('   b) Enable branch protection:'));
-  console.log(chalk.gray('      GitHub → Settings → Branches → Add Rule'));
-  console.log(chalk.gray('      ├─ Branch: main'));
-  console.log(chalk.gray('      ├─ ☑ Require status checks'));
-  console.log(chalk.gray('      └─ ☑ Require PR reviews'));
+  console.log(chalk.cyan('Summary:'));
+  console.log(chalk.gray(`   ├─ Repository: ${gitHubInfo.owner}/${gitHubInfo.repo}`));
+  console.log(chalk.gray(`   ├─ Files created: ${created}`));
+  console.log(chalk.gray(`   ├─ Auto-merge: ${answers.enableAutoMerge ? 'Enabled' : 'Disabled'}`));
+  console.log(chalk.gray(`   └─ Merge strategy: ${answers.mergeStrategy}`));
 
-  console.log('\n3. Commit and push:');
-  console.log(chalk.gray('   git add .vscode .github'));
-  console.log(chalk.gray('   git commit -m "Mayor West Mode: Add autonomous workflows"'));
-  console.log(chalk.gray('   git push origin main'));
+  console.log(chalk.cyan('\nTest the setup:'));
+  console.log(chalk.gray('   1. Create an issue using the Mayor Task template'));
+  console.log(chalk.gray('   2. Add the "mayor-task" label'));
+  console.log(chalk.gray('   3. Watch Copilot get assigned and create a PR'));
+  console.log(chalk.gray('   4. PR should auto-merge after passing checks'));
 
-  console.log('\n4. Test the setup:');
-  console.log(chalk.gray('   GitHub → Actions → Mayor West Orchestrator → Run workflow'));
+  console.log(chalk.cyan('\nUseful commands:'));
+  console.log(chalk.yellow('   mayorwest verify') + chalk.gray(' - Check configuration status'));
+  console.log(chalk.yellow('   mayorwest status') + chalk.gray(' - View active tasks'));
+  console.log(chalk.yellow('   mayorwest examples') + chalk.gray(' - See example task templates'));
 
-  console.log('\n5. Create your first task:');
-  console.log(chalk.gray('   GitHub → Issues → New → Mayor Task template'));
-
-  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx mayor-west-mode verify'));
+  console.log(chalk.cyan.bold('\n🚀 Ready to go! Create your first mayor-task issue.\n'));
 }
 
 // ============================================================================
@@ -1062,6 +1333,68 @@ async function runVerifyFlow() {
       });
     } catch (e) {
       warnings.push('Could not check delete branch setting');
+    }
+
+    // Check for GH_AW_AGENT_TOKEN secret
+    try {
+      const gitHubInfo = parseGitHubUrl(remoteUrl);
+      const secrets = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/actions/secrets --jq ".secrets[].name"`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      });
+      const hasAgentToken = secrets.includes('GH_AW_AGENT_TOKEN');
+      checks.push({
+        name: 'PAT Secret (GH_AW_AGENT_TOKEN)',
+        pass: hasAgentToken,
+        category: 'github',
+      });
+      if (!hasAgentToken) {
+        warnings.push('GH_AW_AGENT_TOKEN secret not found - Copilot auto-assignment won\'t work');
+      }
+    } catch (e) {
+      warnings.push('Could not check repository secrets');
+    }
+
+    // Check workflow permissions
+    try {
+      const gitHubInfo = parseGitHubUrl(remoteUrl);
+      const permissions = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/actions/permissions --jq ".allowed_actions"`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      }).trim();
+      // If we can query permissions at all, actions are enabled
+      checks.push({
+        name: 'GitHub Actions Enabled',
+        pass: true,
+        category: 'github',
+      });
+    } catch (e) {
+      checks.push({
+        name: 'GitHub Actions Enabled',
+        pass: false,
+        category: 'github',
+      });
+    }
+
+    // Check if Copilot agent is available
+    try {
+      const gitHubInfo = parseGitHubUrl(remoteUrl);
+      const result = execSync(`gh api graphql -f query="{ repository(owner:\\"${gitHubInfo.owner}\\", name:\\"${gitHubInfo.repo}\\") { suggestedActors(first:100, capabilities:CAN_BE_ASSIGNED) { nodes { ... on Bot { login } } } } }" --jq ".data.repository.suggestedActors.nodes[].login"`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      });
+      const hasCopilot = result.includes('copilot-swe-agent');
+      checks.push({
+        name: 'Copilot Coding Agent Available',
+        pass: hasCopilot,
+        category: 'copilot',
+      });
+      if (!hasCopilot) {
+        warnings.push('Copilot coding agent not available - ensure Copilot is enabled for this repo');
+      }
+    } catch (e) {
+      // Don't add a failing check, just a warning
+      warnings.push('Could not verify Copilot agent availability');
     }
   } else {
     checks.push({
