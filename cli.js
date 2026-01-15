@@ -1353,6 +1353,22 @@ async function runVerifyFlow() {
       warnings.push('Could not check delete branch setting');
     }
 
+    try {
+      // Check squash merge enabled
+      const gitHubInfo = parseGitHubUrl(remoteUrl);
+      const squashMerge = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} --jq ".allow_squash_merge"`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      }).trim();
+      checks.push({
+        name: 'Squash Merge Enabled',
+        pass: squashMerge === 'true',
+        category: 'github',
+      });
+    } catch (e) {
+      warnings.push('Could not check squash merge setting');
+    }
+
     // Check for GH_AW_AGENT_TOKEN secret
     try {
       const gitHubInfo = parseGitHubUrl(remoteUrl);
@@ -1392,6 +1408,44 @@ async function runVerifyFlow() {
         pass: false,
         category: 'github',
       });
+    }
+
+    // Check workflow default permissions (read-write needed for auto-merge)
+    try {
+      const gitHubInfo = parseGitHubUrl(remoteUrl);
+      const workflowPerms = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/actions/permissions/workflow --jq ".default_workflow_permissions"`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      }).trim();
+      checks.push({
+        name: 'Workflow Permissions: Read & Write',
+        pass: workflowPerms === 'write',
+        category: 'github',
+      });
+      if (workflowPerms !== 'write') {
+        warnings.push('Workflow permissions should be "Read and write" for auto-merge to work');
+      }
+    } catch (e) {
+      warnings.push('Could not check workflow default permissions');
+    }
+
+    // Check if workflows can create PRs
+    try {
+      const gitHubInfo = parseGitHubUrl(remoteUrl);
+      const canApprovePRs = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/actions/permissions/workflow --jq ".can_approve_pull_request_reviews"`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      }).trim();
+      checks.push({
+        name: 'Workflows Can Approve PRs',
+        pass: canApprovePRs === 'true',
+        category: 'github',
+      });
+      if (canApprovePRs !== 'true') {
+        warnings.push('Enable "Allow GitHub Actions to create and approve pull requests" in Settings → Actions');
+      }
+    } catch (e) {
+      warnings.push('Could not check workflow PR approval permissions');
     }
 
     // Check if Copilot agent is available
