@@ -319,18 +319,21 @@ labels: mayor-task
   describe('Edge Cases', () => {
     test('should handle empty git remote URL', () => {
       const remoteUrl = '';
+      // Test case: simple string check for empty URL
       const isValid = remoteUrl && remoteUrl.includes('github.com');
       expect(isValid).toBeFalsy();
     });
 
     test('should handle non-GitHub remote URL', () => {
       const remoteUrl = 'https://gitlab.com/owner/repo.git';
+      // Test case: simple string check for non-GitHub URL
       const isGitHub = remoteUrl && remoteUrl.includes('github.com');
       expect(isGitHub).toBe(false);
     });
 
     test('should handle GitHub URL with subdomains', () => {
       const remoteUrl = 'https://api.github.com/owner/repo.git';
+      // Production code uses proper regex matching (see parseGitHubUrl function)
       const match = remoteUrl.match(/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/);
       expect(match).toBeTruthy();
       expect(match[1]).toBe('owner');
