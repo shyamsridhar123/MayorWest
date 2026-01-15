@@ -56,16 +56,6 @@ const FILES_TO_CREATE = {
     category: 'template',
     critical: false,
   },
-  '.github/mayor-west.yml': {
-    displayName: 'Security Config',
-    category: 'configuration',
-    critical: true,
-  },
-  '.github/CODEOWNERS': {
-    displayName: 'Auto-Merge Allowlist',
-    category: 'security',
-    critical: true,
-  },
 };
 
 // ============================================================================
@@ -126,80 +116,12 @@ function ensureDirectory(dir) {
   }
 }
 
-function isGHCLIAvailable() {
-  try {
-    execSync('gh --version', { stdio: 'ignore' });
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function isGHCLIAuthenticated() {
-  try {
-    execSync('gh auth status', { stdio: 'ignore' });
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function checkAutoMergeEnabled(owner, repo) {
-  try {
-    const result = execSync(`gh api repos/${owner}/${repo} --jq .allow_auto_merge`, { encoding: 'utf-8' }).trim();
-    return result === 'true';
-  } catch (e) {
-    return false;
-  }
-}
-
-function checkWorkflowPermissions(owner, repo) {
-  try {
-    const result = execSync(`gh api repos/${owner}/${repo}/actions/permissions/workflow --jq .default_workflow_permissions`, { encoding: 'utf-8' }).trim();
-    return result === 'write';
-  } catch (e) {
-    return false;
-  }
-}
-
-function checkBranchProtection(owner, repo, branch = 'main') {
-  try {
-    execSync(`gh api repos/${owner}/${repo}/branches/${branch}/protection`, { stdio: 'ignore' });
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function checkSecretExists(owner, repo, secretName) {
-  try {
-    const result = execSync(`gh api repos/${owner}/${repo}/actions/secrets`, { encoding: 'utf-8' });
-    const secrets = JSON.parse(result);
-    return secrets.secrets.some(s => s.name === secretName);
-  } catch (e) {
-    return false;
-  }
-}
-
-function checkCopilotAgentAvailable(owner, repo) {
-  try {
-    // Use escaped quotes for cross-platform compatibility (Windows PowerShell + Unix)
-    const query = `{ repository(owner: \\"${owner}\\", name: \\"${repo}\\") { suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) { nodes { ... on Bot { login } } } } }`;
-    const result = execSync(`gh api graphql -f query="${query}"`, { encoding: 'utf-8' });
-    const data = JSON.parse(result);
-    const actors = data.data.repository.suggestedActors.nodes;
-    return actors.some(actor => actor.login === 'copilot-swe-agent');
-  } catch (e) {
-    return false;
-  }
-}
-
 // ============================================================================
 // FILE TEMPLATES
 // ============================================================================
 
 const fileTemplates = {
-  '.vscode/settings.json': (options = {}) => JSON.stringify({
+  '.vscode/settings.json': () => JSON.stringify({
     'chat.tools.autoApprove': true,
     'chat.tools.terminal.autoApprove': {
       '/^git\\s+(commit|push)\\b/': true,
@@ -215,7 +137,7 @@ const fileTemplates = {
     'chat.agent.slowMode': false,
   }, null, 2),
 
-  '.github/agents/mayor-west-mode.md': (options = {}) => `# Mayor West Mode - Copilot Agent Protocol
+  '.github/agents/mayor-west-mode.md': () => `# Mayor West Mode - Copilot Agent Protocol
 
 You are operating in **Mayor West Mode**: eccentric, confident, autonomous.
 
@@ -314,261 +236,57 @@ You have successfully completed a task when:
 **Remember**: Mayor West doesn't ask for permission. He executes with confidence.
 `,
 
-  '.github/workflows/mayor-west-auto-merge.yml': (options = {}) => `name: Mayor West Auto-Merge
-# Autonomous PR merge workflow with 4-layer security architecture
-# Layer 1: Actor allowlist (CODEOWNERS)
-# Layer 2: Protected paths check (mayor-west.yml)
-# Layer 3: Kill switch (enabled flag)
-# Layer 4: Audit trail (PR comments)
-#
-# IMPORTANT: Uses pull_request_target to run in base repo context
-# This avoids "first-time contributor" approval requirements for Copilot PRs
-# Security is maintained through our 4-layer checks (CODEOWNERS, protected paths, etc.)
+  '.github/workflows/mayor-west-auto-merge.yml': () => `name: Mayor West Auto-Merge
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    # Layer 1: Only run for Copilot PRs (copilot-swe-agent is the GitHub App actor)
-    if: github.actor == 'copilot-swe-agent' || github.actor == 'copilot' || github.actor == 'copilot[bot]'
+    if: github.actor == 'copilot' || github.actor == 'copilot[bot]'
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          # For pull_request_target, we need to checkout the PR head
-          ref: \${{ github.event.pull_request.head.sha }}
-          sparse-checkout: |
-            .github/mayor-west.yml
-            .github/CODEOWNERS
-
-      - name: Check Security Layers
-        id: security
+      - name: Enable Auto-Merge
         uses: actions/github-script@v7
         with:
           github-token: \${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const path = require('path');
-            
-            // ================================================================
-            // Layer 1: Check if actor is in CODEOWNERS allowlist
-            // ================================================================
-            let actorAllowed = false;
-            const codeownersPath = '.github/CODEOWNERS';
-            
-            if (fs.existsSync(codeownersPath)) {
-              const codeowners = fs.readFileSync(codeownersPath, 'utf8');
-              const actor = context.actor;
-              // Check if actor (copilot, copilot[bot]) is mentioned
-              actorAllowed = codeowners.includes('@' + actor) || 
-                             codeowners.includes('@copilot');
-              console.log(\\\`Layer 1 - CODEOWNERS check: \\\${actorAllowed ? '✅ PASS' : '❌ FAIL'}\\\`);
-              console.log(\\\`  Actor: \\\${actor}\\\`);
-            } else {
-              // No CODEOWNERS = allow all (backwards compatibility)
-              actorAllowed = true;
-              console.log('Layer 1 - CODEOWNERS: ⚠️ No file found, allowing all actors');
-            }
-            
-            if (!actorAllowed) {
-              core.setOutput('allowed', 'false');
-              core.setOutput('reason', 'Actor not in CODEOWNERS allowlist');
-              return;
-            }
-            
-            // ================================================================
-            // Layer 2: Check protected paths
-            // ================================================================
-            const configPath = '.github/mayor-west.yml';
-            let config = { enabled: true, protected_paths: [] };
-            
-            if (fs.existsSync(configPath)) {
-              const yaml = fs.readFileSync(configPath, 'utf8');
-              // Simple YAML parsing for our known structure
-              const enabledMatch = yaml.match(/^enabled:\\s*(true|false)/m);
-              if (enabledMatch) {
-                config.enabled = enabledMatch[1] === 'true';
-              }
-              
-              // Extract protected_paths array
-              const pathsMatch = yaml.match(/protected_paths:\\s*\\n([\\s\\S]*?)(?=\\n[a-z]|$)/);
-              if (pathsMatch) {
-                const pathLines = pathsMatch[1].split('\\n');
-                config.protected_paths = pathLines
-                  .filter(line => line.trim().startsWith('-'))
-                  .map(line => line.replace(/^\\s*-\\s*["']?([^"'#]+)["']?.*$/, '$1').trim())
-                  .filter(p => p.length > 0);
-              }
-            }
-            
-            // ================================================================
-            // Layer 3: Kill switch check
-            // ================================================================
-            if (!config.enabled) {
-              console.log('Layer 3 - Kill switch: ❌ Mayor West Mode is PAUSED');
-              core.setOutput('allowed', 'false');
-              core.setOutput('reason', 'Mayor West Mode is paused (enabled: false)');
-              return;
-            }
-            console.log('Layer 3 - Kill switch: ✅ Mode is ENABLED');
-            
-            // ================================================================
-            // Layer 2 continued: Check if PR touches protected paths
-            // ================================================================
-            const { data: files } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
-            });
-            
-            const changedFiles = files.map(f => f.filename);
-            console.log(\\\`Changed files: \\\${changedFiles.join(', ')}\\\`);
-            
-            // Glob pattern matching
-            function matchesGlob(filepath, pattern) {
-              // Convert glob to regex
-              let regex = pattern
-                .replace(/\\./g, '\\\\.')
-                .replace(/\\*\\*/g, '<<<DOUBLESTAR>>>')
-                .replace(/\\*/g, '[^/]*')
-                .replace(/<<<DOUBLESTAR>>>/g, '.*');
-              return new RegExp('^' + regex + '\$').test(filepath);
-            }
-            
-            const protectedHits = [];
-            for (const file of changedFiles) {
-              for (const pattern of config.protected_paths) {
-                if (matchesGlob(file, pattern)) {
-                  protectedHits.push({ file, pattern });
-                }
-              }
-            }
-            
-            if (protectedHits.length > 0) {
-              console.log('Layer 2 - Protected paths: ❌ BLOCKED');
-              for (const hit of protectedHits) {
-                console.log(\\\`  \\\${hit.file} matches \\\${hit.pattern}\\\`);
-              }
-              core.setOutput('allowed', 'false');
-              core.setOutput('reason', 'PR touches protected paths: ' + protectedHits.map(h => h.file).join(', '));
-              core.setOutput('protected_files', protectedHits.map(h => h.file).join(', '));
-              return;
-            }
-            console.log('Layer 2 - Protected paths: ✅ No protected files touched');
-            
-            // All checks passed
-            console.log('\\n✅ All security layers passed - auto-merge allowed');
-            core.setOutput('allowed', 'true');
-
-      - name: Add Protected Path Comment
-        if: steps.security.outputs.allowed == 'false' && steps.security.outputs.protected_files != ''
-        uses: actions/github-script@v7
-        with:
-          github-token: \${{ secrets.GITHUB_TOKEN }}
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: \\\`## 🛡️ Mayor West Security Check
-            
-**Auto-merge disabled** - This PR touches protected paths.
-
-**Protected files:**
-\\\${'\${{ steps.security.outputs.protected_files }}'.split(', ').map(f => '- \\\\\\\`' + f + '\\\\\\\`').join('\\n')}
-
-A human must review and merge this PR manually.
-
----
-*Mayor West Mode - Security Layer 2 (Protected Paths)*\\\`
-            });
-
-      - name: Mark PR Ready and Enable Auto-Merge
-        if: steps.security.outputs.allowed == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: \${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNodeId = context.payload.pull_request.node_id;
-            const prNumber = context.issue.number;
-            
-            // Step 1: Mark PR as ready (in case it's a draft)
-            if (context.payload.pull_request.draft) {
-              console.log('📝 PR is a draft, marking as ready for review...');
-              try {
-                await github.graphql(\\\`
-                  mutation {
-                    markPullRequestReadyForReview(input: {
-                      pullRequestId: "\\\${prNodeId}"
-                    }) {
-                      pullRequest {
-                        isDraft
-                      }
-                    }
-                  }
-                \\\`);
-                console.log('✅ PR marked as ready for review');
-              } catch (error) {
-                console.log('⚠️ Could not mark PR as ready:', error.message);
-              }
-            }
-            
-            // Step 2: Enable auto-merge
             try {
-              await github.graphql(\\\`
+              await github.graphql(\`
                 mutation {
                   enablePullRequestAutoMerge(input: {
-                    pullRequestId: "\\\${prNodeId}"
+                    pullRequestId: "\${context.payload.pull_request.node_id}"
                     mergeMethod: SQUASH
                   }) {
                     pullRequest {
+                      id
+                      title
                       autoMergeRequest {
                         enabledAt
+                        mergeMethod
                       }
                     }
                   }
                 }
-              \\\`);
-              
-              // Layer 4: Audit trail
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: \\\`## 🤖 Mayor West Auto-Merge Enabled
-              
-✅ All security checks passed:
-- **Layer 1**: Actor in CODEOWNERS allowlist
-- **Layer 2**: No protected paths touched  
-- **Layer 3**: Mode enabled
-
-This PR will merge automatically when all status checks pass.
-
----
-*Mayor West Mode v1.0.0*\\\`
-              });
-              
-              console.log('✅ Auto-merge enabled for PR #' + prNumber);
+              \`);
+              console.log('✅ Auto-merge enabled for PR #' + context.issue.number);
+              console.log('Note: PR will merge automatically once all required status checks pass.');
             } catch (error) {
-              console.log('⚠️ Auto-merge could not be enabled:', error.message);
-              console.log('Ensure "Allow auto-merge" is enabled in repository settings.');
+              console.log('⚠️  Auto-merge could not be enabled:', error.message);
+              console.log('This is expected if:');
+              console.log('  - Repository does not have "Allow auto-merge" enabled in settings');
+              console.log('  - Branch protection rules are not configured');
+              console.log('  - Required status checks are not defined');
             }
-
-      - name: Skip Auto-Merge
-        if: steps.security.outputs.allowed == 'false' && steps.security.outputs.protected_files == ''
-        run: |
-          echo "⚠️ Auto-merge skipped: \${{ steps.security.outputs.reason }}"
 `,
 
-  '.github/workflows/mayor-west-orchestrator.yml': (options = {}) => \`name: Mayor West Orchestrator
+  '.github/workflows/mayor-west-orchestrator.yml': () => `name: Mayor West Orchestrator
 
 on:
   workflow_dispatch:
@@ -579,9 +297,9 @@ on:
     - cron: '*/15 * * * *'
 
 permissions:
-  contents: write
+  contents: read
   issues: write
-  pull-requests: write
+  pull-requests: read
 
 jobs:
   orchestrate:
@@ -611,295 +329,29 @@ jobs:
             }
             
             const task = issues[0];
-            console.log(\\\`Found task: #\\\${task.number} - \\\${task.title}\\\`);
+            console.log(\`Found task: #\${task.number} - \${task.title}\`);
             
             core.setOutput('task_number', task.number);
             core.setOutput('found', 'true');
 
-      - name: Assign Copilot to Issue
+      - name: Trigger Copilot via Comment
         if: steps.find_task.outputs.found == 'true'
         uses: actions/github-script@v7
         with:
-          github-token: \${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
+          github-token: \${{ secrets.GITHUB_TOKEN }}
           script: |
             const taskNumber = \${{ steps.find_task.outputs.task_number }};
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
             
-            // Step 1: Find Copilot agent ID using suggestedActors query
-            console.log('Looking for copilot coding agent...');
-            const findAgentQuery = \\\`
-              query($owner: String!, $repo: String!) {
-                repository(owner: $owner, name: $repo) {
-                  suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
-                    nodes {
-                      ... on Bot {
-                        id
-                        login
-                        __typename
-                      }
-                    }
-                  }
-                }
-              }
-            \\\`;
-            
-            const agentResponse = await github.graphql(findAgentQuery, { owner, repo });
-            const actors = agentResponse.repository.suggestedActors.nodes;
-            const copilotAgent = actors.find(actor => actor.login === 'copilot-swe-agent');
-            
-            if (!copilotAgent) {
-              console.log('Available actors:', actors.map(a => a.login).join(', '));
-              throw new Error('Copilot coding agent (copilot-swe-agent) is not available for this repository');
-            }
-            
-            console.log(\\\`Found copilot agent with ID: \\\${copilotAgent.id}\\\`);
-            
-            // Step 2: Get issue ID and current assignees
-            const issueQuery = \\\`
-              query($owner: String!, $repo: String!, $issueNumber: Int!) {
-                repository(owner: $owner, name: $repo) {
-                  issue(number: $issueNumber) {
-                    id
-                    assignees(first: 100) {
-                      nodes { id }
-                    }
-                  }
-                }
-              }
-            \\\`;
-            
-            const issueResponse = await github.graphql(issueQuery, { 
-              owner, 
-              repo, 
-              issueNumber: taskNumber 
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: taskNumber,
+              body: '@copilot Please implement this task according to the acceptance criteria above.'
             });
-            
-            const issueId = issueResponse.repository.issue.id;
-            const currentAssignees = issueResponse.repository.issue.assignees.nodes.map(a => a.id);
-            
-            // Step 3: Assign Copilot using replaceActorsForAssignable mutation
-            const assignMutation = \\\`
-              mutation($assignableId: ID!, $actorIds: [ID!]!) {
-                replaceActorsForAssignable(input: {
-                  assignableId: $assignableId,
-                  actorIds: $actorIds
-                }) {
-                  assignable {
-                    ... on Issue {
-                      id
-                      number
-                      assignees(first: 10) {
-                        nodes { login }
-                      }
-                    }
-                  }
-                }
-              }
-            \\\`;
-            
-            const newAssignees = [...currentAssignees, copilotAgent.id];
-            const assignResponse = await github.graphql(assignMutation, {
-              assignableId: issueId,
-              actorIds: newAssignees
-            });
-            
-            const assignedLogins = assignResponse.replaceActorsForAssignable.assignable.assignees.nodes.map(a => a.login);
-            console.log(\\\`✅ Assigned to issue #\\\${taskNumber}: \\\${assignedLogins.join(', ')}\\\`);
-
-  merge-copilot-prs:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Read Mayor West Config
-        id: config
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const path = '.github/mayor-west.yml';
-            
-            // Default config if file doesn't exist
-            let config = {
-              enabled: true,
-              protected_paths: [
-                '.github/workflows/**',
-                '.github/mayor-west.yml',
-                'package.json',
-                'package-lock.json'
-              ],
-              settings: {
-                merge_method: 'squash',
-                audit_comments: true
-              }
-            };
-            
-            try {
-              if (fs.existsSync(path)) {
-                const content = fs.readFileSync(path, 'utf8');
-                // Simple YAML parsing for key fields
-                const enabledMatch = content.match(/^enabled:\\s*(true|false)/m);
-                if (enabledMatch) {
-                  config.enabled = enabledMatch[1] === 'true';
-                }
-                
-                // Extract protected paths
-                const pathsMatch = content.match(/protected_paths:\\s*\\n([\\s\\S]*?)(?=\\n\\w|$)/);
-                if (pathsMatch) {
-                  const pathLines = pathsMatch[1].match(/^\\s*-\\s*"([^"]+)"/gm) || [];
-                  config.protected_paths = pathLines.map(line => {
-                    const match = line.match(/"([^"]+)"/);
-                    return match ? match[1] : null;
-                  }).filter(Boolean);
-                }
-              }
-            } catch (e) {
-              console.log('Using default config:', e.message);
-            }
-            
-            console.log('Config:', JSON.stringify(config, null, 2));
-            core.setOutput('enabled', config.enabled);
-            core.setOutput('protected_paths', JSON.stringify(config.protected_paths));
-            return config;
-
-      - name: Find and Merge Copilot PRs
-        if: steps.config.outputs.enabled == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: \${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const protectedPaths = JSON.parse('\${{ steps.config.outputs.protected_paths }}');
-            
-            // Helper function to check if a path matches any protected pattern
-            function isProtectedPath(filePath, patterns) {
-              for (const pattern of patterns) {
-                // Convert glob to regex
-                const regexPattern = pattern
-                  .replace(/\\*\\*/g, '<<<DOUBLESTAR>>>')
-                  .replace(/\\*/g, '[^/]*')
-                  .replace(/<<<DOUBLESTAR>>>/g, '.*')
-                  .replace(/\\./g, '\\\\.')
-                  .replace(/\\?/g, '.');
-                
-                const regex = new RegExp(\\\`^\\\${regexPattern}$\\\`);
-                if (regex.test(filePath)) {
-                  return true;
-                }
-              }
-              return false;
-            }
-            
-            // Find open PRs from Copilot
-            const { data: prs } = await github.rest.pulls.list({
-              owner,
-              repo,
-              state: 'open',
-              per_page: 10
-            });
-            
-            const copilotPRs = prs.filter(pr => 
-              pr.user.login === 'copilot' || 
-              pr.user.login === 'copilot[bot]' ||
-              pr.user.login === 'copilot-swe-agent[bot]'
-            );
-            
-            console.log(\\\`Found \\\${copilotPRs.length} Copilot PRs to process\\\`);
-            
-            for (const pr of copilotPRs) {
-              console.log(\\\`\\nProcessing PR #\\\${pr.number}: \\\${pr.title}\\\`);
-              
-              // Check if PR is draft
-              if (pr.draft) {
-                console.log('  ⏸️  Skipping draft PR');
-                continue;
-              }
-              
-              // Get files changed in this PR
-              const { data: files } = await github.rest.pulls.listFiles({
-                owner,
-                repo,
-                pull_number: pr.number
-              });
-              
-              const changedFiles = files.map(f => f.filename);
-              console.log(\\\`  Changed files: \\\${changedFiles.join(', ')}\\\`);
-              
-              // Check for protected paths
-              const protectedFiles = changedFiles.filter(f => isProtectedPath(f, protectedPaths));
-              
-              if (protectedFiles.length > 0) {
-                console.log(\\\`  🛡️  PR touches protected paths: \\\${protectedFiles.join(', ')}\\\`);
-                console.log('  ⏸️  Skipping auto-merge - requires human review');
-                
-                // Add comment explaining why it wasn't merged
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: pr.number,
-                  body: \\\`## 🛡️ Mayor West Security Review Required
-                  
-This PR touches protected paths and requires human review before merge:
-
-\\\${protectedFiles.map(f => \\\`- \\\\\\\`\\\${f}\\\\\\\`\\\`).join('\\n')}
-
-**Protected paths are defined in** \\\\\\\`.github/mayor-west.yml\\\\\\\`
-
-Once reviewed, you can merge this PR manually.\\\`
-                });
-                continue;
-              }
-              
-              // Check if mergeable
-              const { data: prDetails } = await github.rest.pulls.get({
-                owner,
-                repo,
-                pull_number: pr.number
-              });
-              
-              if (prDetails.mergeable_state !== 'clean') {
-                console.log(\\\`  ⚠️  PR is not in clean mergeable state: \\\${prDetails.mergeable_state}\\\`);
-                continue;
-              }
-              
-              // Merge the PR
-              try {
-                await github.rest.pulls.merge({
-                  owner,
-                  repo,
-                  pull_number: pr.number,
-                  merge_method: 'squash',
-                  commit_title: \\\`[MAYOR] \\\${pr.title} (#\\\${pr.number})\\\`
-                });
-                
-                console.log(\\\`  ✅ Merged PR #\\\${pr.number}\\\`);
-                
-                // Add audit comment
-                await github.rest.issues.createComment({
-                  owner,
-                  repo,
-                  issue_number: pr.number,
-                  body: \\\`## 🤠 Mayor West Auto-Merged
-                  
-**Merged at:** \\\${new Date().toISOString()}
-**Changed files:** \\\${changedFiles.length}
-**Method:** squash
-
----
-*Autonomous merge by Mayor West Orchestrator*\\\`
-                });
-                
-              } catch (mergeError) {
-                console.log(\\\`  ❌ Failed to merge: \\\${mergeError.message}\\\`);
-              }
-            }
+            console.log(\`Triggered Copilot on issue #\${taskNumber} via @copilot mention\`);
 `,
 
-  '.github/ISSUE_TEMPLATE/mayor-task.md': (options = {}) => `---
+  '.github/ISSUE_TEMPLATE/mayor-task.md': () => `---
 name: Mayor Task
 about: Create a task for autonomous execution
 labels: mayor-task
@@ -987,78 +439,6 @@ Task is complete when:
 - [ ] PR created with description
 - [ ] PR ready for merge
 `,
-
-  '.github/mayor-west.yml': (options = {}) => `# Mayor West Mode Security Configuration
-# This file controls autonomous merge behavior for Copilot PRs
-
-# Enable/disable Mayor West Mode (set to false to pause all auto-merges)
-enabled: true
-
-# Protected paths - PRs touching these files require human review
-# Uses glob patterns matching file paths in the PR
-protected_paths:
-  # Critical infrastructure
-  - ".github/workflows/**"        # Workflow modifications need human review
-  - ".github/mayor-west.yml"      # This config file itself
-  
-  # Package management
-  - "package.json"                # Dependency changes
-  - "package-lock.json"           # Lock file changes
-  - "yarn.lock"                   # Yarn lock file
-  - "pnpm-lock.yaml"              # pnpm lock file
-  
-  # Secrets and environment
-  - "**/.env*"                    # Environment files
-  - "**/secrets/**"               # Any secrets directory
-  - "**/*.pem"                    # Certificates
-  - "**/*.key"                    # Private keys
-
-# Settings for auto-merge behavior
-settings:
-  # Merge method: squash, merge, or rebase
-  merge_method: squash
-  
-  # Delete branch after merge
-  delete_branch: true
-  
-  # Require all status checks to pass
-  require_status_checks: true
-  
-  # Add audit comment to merged PRs
-  audit_comments: true
-
-# Audit log settings
-audit:
-  # Log all Copilot merge events to a file
-  log_to_file: false
-  log_path: ".github/mayor-west-audit.log"
-  
-  # Add comment to PR with merge details
-  comment_on_merge: true
-`,
-
-  '.github/CODEOWNERS': (options = {}) => {
-    const owner = options.githubOwner || 'your-username';
-    return `# Mayor West Mode - CODEOWNERS
-# Defines who is authorized for autonomous auto-merge workflows
-# 
-# How it works:
-# - The auto-merge workflow checks if the PR author is listed here
-# - Only PRs from listed actors are eligible for auto-merge
-# - This is Layer 1 of the 4-layer security architecture
-#
-# Format: <pattern> @username @username2
-# Use * for all files (default owner)
-
-# Repository owner - authorized for auto-merge  
-* @${owner}
-
-# Copilot agents - authorized for auto-merge
-# copilot-swe-agent is the GitHub App that creates PRs
-* @copilot
-* @copilot-swe-agent
-`;
-  },
 };
 
 // ============================================================================
@@ -1164,15 +544,10 @@ async function runSetupFlow() {
   const spinner = ora('Creating files...').start();
   let created = 0;
 
-  // Get GitHub owner for templates that need it
-  const templateOptions = {
-    githubOwner: gitHubInfo ? gitHubInfo.owner : 'your-username',
-  };
-
   for (const [filePath, config] of Object.entries(filesToCreate)) {
     try {
       ensureDirectory(filePath);
-      const content = fileTemplates[filePath](templateOptions);
+      const content = fileTemplates[filePath]();
       fs.writeFileSync(filePath, content, 'utf-8');
       created++;
       spinner.succeed(`✓ ${chalk.green(config.displayName)}`);
@@ -1195,33 +570,26 @@ async function runSetupFlow() {
   });
 
   console.log('\n2. Configure GitHub repository settings:');
-  console.log(chalk.cyan('   Run the configure command:'));
-  console.log(chalk.yellow('   npx mayor-west-mode configure'));
-  console.log(chalk.gray('   This will set up auto-merge, workflow permissions, and branch protection.'));
+  console.log(chalk.cyan('   a) Enable auto-merge:'));
+  console.log(chalk.gray('      GitHub → Settings → Pull Requests → Allow auto-merge'));
+  console.log(chalk.cyan('   b) Enable branch protection:'));
+  console.log(chalk.gray('      GitHub → Settings → Branches → Add Rule'));
+  console.log(chalk.gray('      ├─ Branch: main'));
+  console.log(chalk.gray('      ├─ ☑ Require status checks'));
+  console.log(chalk.gray('      └─ ☑ Require PR reviews'));
 
-  console.log('\n3. Create a Personal Access Token (PAT):');
-  console.log(chalk.gray('   The orchestrator needs a PAT to assign Copilot to issues.'));
-  console.log(chalk.cyan('   a) Create token at: https://github.com/settings/personal-access-tokens/new'));
-  console.log(chalk.gray('   b) Repository access: Select your repository'));
-  console.log(chalk.gray('   c) Permissions: Actions, Contents, Issues, Pull-requests (Read+Write)'));
-  console.log(chalk.cyan('   d) Add as secret: gh secret set GH_AW_AGENT_TOKEN'));
-
-  console.log('\n4. Set fork PR workflow approval (one-time):');
-  console.log(chalk.gray('   Settings → Actions → General → Fork pull request workflows'));
-  console.log(chalk.gray('   Select: "Require approval for first-time contributors who are new to GitHub"'));
-
-  console.log('\n5. Commit and push:');
+  console.log('\n3. Commit and push:');
   console.log(chalk.gray('   git add .vscode .github'));
-  console.log(chalk.gray('   git commit -m "[MAYOR] Add autonomous workflows"'));
+  console.log(chalk.gray('   git commit -m "Mayor West Mode: Add autonomous workflows"'));
   console.log(chalk.gray('   git push origin main'));
 
-  console.log('\n6. Test the setup:');
+  console.log('\n4. Test the setup:');
   console.log(chalk.gray('   GitHub → Actions → Mayor West Orchestrator → Run workflow'));
 
-  console.log('\n7. Create your first task:');
+  console.log('\n5. Create your first task:');
   console.log(chalk.gray('   GitHub → Issues → New → Mayor Task template'));
 
-  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx mayor-west-mode configure'));
+  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx mayor-west-mode verify'));
 }
 
 // ============================================================================
@@ -1237,199 +605,30 @@ async function runVerifyFlow() {
   checks.push({
     name: 'Git Repository',
     pass: isGitRepository(),
-    errorMsg: 'Not a git repository. Run: git init',
   });
 
   // Check files
   const fileChecks = Object.entries(FILES_TO_CREATE).map(([filePath, config]) => ({
     name: config.displayName,
     pass: fs.existsSync(filePath),
-    errorMsg: `File missing: ${filePath}. Run: npx mayor-west-mode setup`,
   }));
   checks.push(...fileChecks);
 
   // Check GitHub connection
   const remoteUrl = getGitRemoteUrl();
-  const hasGitHubRemote = remoteUrl !== null && remoteUrl.includes('github.com');
   checks.push({
     name: 'GitHub Remote',
-    pass: hasGitHubRemote,
-    errorMsg: 'No GitHub remote found. Run: git remote add origin <url>',
+    pass: remoteUrl !== null && remoteUrl.includes('github.com'),
   });
-
-  // GitHub Settings Checks (only if gh CLI is available)
-  const ghAvailable = isGHCLIAvailable();
-  const ghAuth = ghAvailable && isGHCLIAuthenticated();
-  
-  checks.push({
-    name: 'GitHub CLI (gh) installed',
-    pass: ghAvailable,
-    errorMsg: 'GitHub CLI not found. Install from: https://cli.github.com',
-  });
-
-  if (ghAvailable) {
-    checks.push({
-      name: 'GitHub CLI authenticated',
-      pass: ghAuth,
-      errorMsg: 'Not authenticated with GitHub CLI. Run: gh auth login',
-    });
-  }
-
-  // Only run GitHub API checks if gh CLI is available and authenticated
-  if (ghAuth && hasGitHubRemote) {
-    const gitHubInfo = parseGitHubUrl(remoteUrl);
-    if (gitHubInfo) {
-      const { owner, repo } = gitHubInfo;
-
-      // Check auto-merge
-      const autoMergeEnabled = checkAutoMergeEnabled(owner, repo);
-      checks.push({
-        name: 'Auto-merge enabled',
-        pass: autoMergeEnabled,
-        errorMsg: `Auto-merge not enabled. Fix: Settings → General → Pull Requests → ☑ Allow auto-merge\nOr run: gh api repos/${owner}/${repo} -X PATCH -f allow_auto_merge=true`,
-      });
-
-      // Check workflow permissions
-      const workflowPerms = checkWorkflowPermissions(owner, repo);
-      checks.push({
-        name: 'Workflow permissions (read-write)',
-        pass: workflowPerms,
-        errorMsg: `Workflow permissions not set to write. Fix: Settings → Actions → General → Workflow permissions → ☑ Read and write\nOr run: gh api repos/${owner}/${repo}/actions/permissions/workflow -X PUT -f default_workflow_permissions=write`,
-      });
-
-      // Check branch protection
-      const branchProtected = checkBranchProtection(owner, repo, 'main');
-      checks.push({
-        name: 'Branch protection (main)',
-        pass: branchProtected,
-        errorMsg: `Branch protection not configured. Fix: Settings → Branches → Add rule for 'main'\nOr run: npx mayor-west-mode configure`,
-      });
-
-      // Check GH_AW_AGENT_TOKEN secret
-      const secretExists = checkSecretExists(owner, repo, 'GH_AW_AGENT_TOKEN');
-      checks.push({
-        name: 'GH_AW_AGENT_TOKEN secret',
-        pass: secretExists,
-        errorMsg: `Secret not found. Create a Fine-Grained PAT at https://github.com/settings/personal-access-tokens/new\nThen run: gh secret set GH_AW_AGENT_TOKEN`,
-      });
-
-      // Check Copilot agent availability
-      const copilotAvailable = checkCopilotAgentAvailable(owner, repo);
-      checks.push({
-        name: 'Copilot coding agent available',
-        pass: copilotAvailable,
-        errorMsg: 'Copilot coding agent (copilot-swe-agent) not available for this repository. Ensure GitHub Copilot is enabled.',
-      });
-    }
-  }
-
-  // Security Configuration Checks
-  const securityConfigPath = '.github/mayor-west.yml';
-  const securityConfigExists = fs.existsSync(securityConfigPath);
-  
-  checks.push({
-    name: 'Security config exists',
-    pass: securityConfigExists,
-    errorMsg: `Security config missing: ${securityConfigPath}. Run: npx mayor-west-mode setup`,
-  });
-
-  if (securityConfigExists) {
-    try {
-      const secContent = fs.readFileSync(securityConfigPath, 'utf8');
-      
-      // Check for enabled flag
-      const hasEnabledFlag = /^enabled:\s*(true|false)/m.test(secContent);
-      checks.push({
-        name: 'Security config: enabled flag present',
-        pass: hasEnabledFlag,
-        errorMsg: 'Security config missing "enabled: true/false" flag',
-      });
-
-      // Check for protected_paths section
-      const hasProtectedPaths = /^protected_paths:/m.test(secContent);
-      checks.push({
-        name: 'Security config: protected paths defined',
-        pass: hasProtectedPaths,
-        errorMsg: 'No protected_paths section in security config',
-      });
-
-      // Check critical paths are protected
-      const protectsWorkflows = secContent.includes('.github/workflows/**') || 
-                                secContent.includes('.github/workflows/*');
-      checks.push({
-        name: 'Security config: workflows protected',
-        pass: protectsWorkflows,
-        errorMsg: 'Workflows not protected! Add ".github/workflows/**" to protected_paths',
-      });
-
-      const protectsPackageJson = secContent.includes('package.json');
-      checks.push({
-        name: 'Security config: package.json protected',
-        pass: protectsPackageJson,
-        errorMsg: 'package.json not protected! Add "package.json" to protected_paths',
-      });
-
-      // Check for settings section
-      const hasSettings = /^settings:/m.test(secContent);
-      checks.push({
-        name: 'Security config: settings section present',
-        pass: hasSettings,
-        errorMsg: 'No settings section in security config',
-      });
-
-    } catch (e) {
-      checks.push({
-        name: 'Security config: readable',
-        pass: false,
-        errorMsg: `Could not read security config: ${e.message}`,
-      });
-    }
-  }
-
-  // VS Code Settings Security Check
-  const vscodeSettingsPath = '.vscode/settings.json';
-  if (fs.existsSync(vscodeSettingsPath)) {
-    try {
-      const vscContent = fs.readFileSync(vscodeSettingsPath, 'utf8');
-      
-      // Check for blocked destructive commands
-      const blocksRm = vscContent.includes('"rm"') || vscContent.includes("'rm'");
-      const blocksKill = vscContent.includes('"kill"') || vscContent.includes("'kill'");
-      const blocksResetHard = vscContent.includes('reset --hard') || vscContent.includes('reset%20--hard');
-      
-      checks.push({
-        name: 'YOLO config: blocks destructive commands',
-        pass: blocksRm && blocksKill,
-        errorMsg: 'VS Code settings should block "rm" and "kill" commands',
-      });
-
-      // Check for iteration limit
-      const hasIterationLimit = /iterationLimit.*:\s*\d+/i.test(vscContent);
-      checks.push({
-        name: 'YOLO config: iteration limit set',
-        pass: hasIterationLimit,
-        errorMsg: 'No iteration limit found in VS Code settings',
-      });
-
-    } catch (e) {
-      // JSON parse errors are ok, file might have comments
-    }
-  }
 
   // Display results
-  log.divider();
-  console.log('');
-  
   let passed = 0;
   checks.forEach(check => {
     if (check.pass) {
       log.success(check.name);
       passed++;
     } else {
-      log.error(check.name);
-      if (check.errorMsg) {
-        console.log(chalk.gray(`  → ${check.errorMsg}`));
-      }
+      log.warning(check.name);
     }
   });
 
@@ -1445,10 +644,7 @@ async function runVerifyFlow() {
     console.log('\nYour Mayor West Mode setup is complete and ready to use.\n');
     console.log('Next: Create a task and trigger the orchestrator workflow.\n');
   } else {
-    log.warning('Some checks failed. See error messages above for fixes.\n');
-    if (!ghAvailable || !ghAuth) {
-      console.log(chalk.gray('Note: Install and authenticate with GitHub CLI to enable additional checks.\n'));
-    }
+    log.warning('Some checks failed. Run setup again to fix issues.\n');
   }
 }
 
@@ -1467,19 +663,7 @@ function showHelp() {
   console.log(chalk.gray('    Guided setup wizard for Mayor West Mode configuration\n'));
 
   console.log(chalk.yellow('  verify'));
-  console.log(chalk.gray('    Verify setup and security configuration (comprehensive checks)\n'));
-
-  console.log(chalk.yellow('  configure'));
-  console.log(chalk.gray('    Configure GitHub settings and security options (protected paths, merge method)\n'));
-
-  console.log(chalk.yellow('  pause'));
-  console.log(chalk.gray('    Pause autonomous mode (disable auto-merge for Copilot PRs)\n'));
-
-  console.log(chalk.yellow('  resume'));
-  console.log(chalk.gray('    Resume autonomous mode (re-enable auto-merge)\n'));
-
-  console.log(chalk.yellow('  status'));
-  console.log(chalk.gray('    Show current status including security configuration\n'));
+  console.log(chalk.gray('    Verify that all Mayor West Mode files are in place\n'));
 
   console.log(chalk.yellow('  help'));
   console.log(chalk.gray('    Show this help message\n'));
@@ -1487,22 +671,16 @@ function showHelp() {
   console.log(chalk.yellow('  examples'));
   console.log(chalk.gray('    Show usage examples and best practices\n'));
 
+  console.log(chalk.yellow('  status'));
+  console.log(chalk.gray('    Show current Mayor West Mode status\n'));
+
   console.log(chalk.yellow('  version'));
   console.log(chalk.gray('    Show version information\n'));
-
-  console.log(chalk.cyan.bold('Security Commands:\n'));
-  console.log(chalk.gray('  setup     → Creates .github/mayor-west.yml with protected paths'));
-  console.log(chalk.gray('  configure → Modify protected paths and merge settings'));
-  console.log(chalk.gray('  verify    → Validates security config (blocked commands, protected paths)'));
-  console.log(chalk.gray('  pause     → Emergency kill switch (disables all auto-merge)'));
-  console.log(chalk.gray('  resume    → Re-enable autonomous mode\n'));
 
   console.log(chalk.cyan.bold('Examples:\n'));
   console.log(chalk.gray('  npx mayor-west-mode setup'));
   console.log(chalk.gray('  npx mayor-west-mode verify'));
-  console.log(chalk.gray('  npx mayor-west-mode configure   # Interactive security config'));
-  console.log(chalk.gray('  npx mayor-west-mode pause       # Emergency stop'));
-  console.log(chalk.gray('  npx mayor-west-mode resume\n'));
+  console.log(chalk.gray('  npx mayor-west-mode examples\n'));
 }
 
 function showExamples() {
@@ -1559,361 +737,6 @@ function showExamples() {
   console.log(chalk.gray('   - Complex: 30-60 minutes (multi-component changes)\n'));
 }
 
-// ============================================================================
-// CONFIGURE COMMAND - GitHub Repository Settings
-// ============================================================================
-
-async function runConfigureFlow() {
-  log.header('⚙️  Configuring GitHub Repository Settings');
-
-  // Verify git repository and GitHub CLI
-  if (!isGitRepository()) {
-    log.error('Not a git repository. Please run this from a git repository root.');
-    process.exit(1);
-  }
-
-  const remoteUrl = getGitRemoteUrl();
-  const gitHubInfo = parseGitHubUrl(remoteUrl);
-  if (!gitHubInfo) {
-    log.error('Could not parse GitHub URL. Ensure remote points to GitHub.');
-    process.exit(1);
-  }
-
-  // Check if gh CLI is installed
-  try {
-    execSync('gh --version', { stdio: 'ignore' });
-  } catch (e) {
-    log.error('GitHub CLI (gh) is required. Install it from: https://cli.github.com');
-    process.exit(1);
-  }
-
-  // Check if authenticated
-  try {
-    execSync('gh auth status', { stdio: 'ignore' });
-  } catch (e) {
-    log.error('Not authenticated with GitHub CLI. Run: gh auth login');
-    process.exit(1);
-  }
-
-  const { owner, repo } = gitHubInfo;
-  log.success(`Configuring: ${owner}/${repo}`);
-  log.divider();
-
-  const spinner = ora('Configuring repository settings...').start();
-  const results = [];
-
-  // 1. Enable auto-merge on repository
-  try {
-    spinner.text = 'Enabling auto-merge...';
-    execSync(`gh api repos/${owner}/${repo} -X PATCH -f allow_auto_merge=true`, { stdio: 'ignore' });
-    results.push({ name: 'Auto-merge enabled', success: true });
-  } catch (e) {
-    results.push({ name: 'Auto-merge enabled', success: false, error: e.message });
-  }
-
-  // 2. Set workflow permissions to read-write
-  try {
-    spinner.text = 'Setting workflow permissions...';
-    execSync(`gh api repos/${owner}/${repo}/actions/permissions/workflow -X PUT -f default_workflow_permissions=write -F can_approve_pull_request_reviews=true`, { stdio: 'ignore' });
-    results.push({ name: 'Workflow permissions (write)', success: true });
-  } catch (e) {
-    results.push({ name: 'Workflow permissions (write)', success: false, error: e.message });
-  }
-
-  // 3. Set branch protection (minimal - just to enable auto-merge)
-  try {
-    spinner.text = 'Setting branch protection...';
-    const branchProtection = JSON.stringify({
-      required_status_checks: { strict: false, contexts: [] },
-      enforce_admins: false,
-      required_pull_request_reviews: null,
-      restrictions: null
-    });
-    // Write to temp file for cross-platform compatibility
-    const tempFile = path.join(process.cwd(), '.mayor-west-temp.json');
-    fs.writeFileSync(tempFile, branchProtection);
-    try {
-      execSync(`gh api repos/${owner}/${repo}/branches/main/protection -X PUT --input "${tempFile}"`, { stdio: 'ignore' });
-      results.push({ name: 'Branch protection (main)', success: true });
-    } finally {
-      // Clean up temp file
-      if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-    }
-  } catch (e) {
-    results.push({ name: 'Branch protection (main)', success: false, error: e.message });
-  }
-
-  spinner.stop();
-
-  // Display results
-  log.header('Configuration Results');
-  results.forEach(r => {
-    if (r.success) {
-      log.success(r.name);
-    } else {
-      log.warning(`${r.name}: ${r.error || 'Failed'}`);
-    }
-  });
-
-  log.divider();
-
-  // Security Configuration Section
-  console.log(chalk.cyan.bold('\n🛡️  Security Configuration\n'));
-  
-  const securityConfigPath = '.github/mayor-west.yml';
-  if (fs.existsSync(securityConfigPath)) {
-    const { configureSecuritySettings } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'configureSecuritySettings',
-        message: 'Would you like to configure security settings?',
-        default: false,
-      }
-    ]);
-
-    if (configureSecuritySettings) {
-      const securityAnswers = await inquirer.prompt([
-        {
-          type: 'list',
-          name: 'mergeMethod',
-          message: 'Auto-merge method:',
-          choices: [
-            { name: 'Squash (recommended - clean history)', value: 'squash' },
-            { name: 'Merge (preserve all commits)', value: 'merge' },
-            { name: 'Rebase (linear history)', value: 'rebase' },
-          ],
-          default: 'squash',
-        },
-        {
-          type: 'confirm',
-          name: 'auditComments',
-          message: 'Add audit comments to merged PRs?',
-          default: true,
-        },
-        {
-          type: 'confirm',
-          name: 'deleteBranch',
-          message: 'Delete branch after merge?',
-          default: true,
-        },
-        {
-          type: 'checkbox',
-          name: 'additionalProtectedPaths',
-          message: 'Select additional paths to protect (require human review):',
-          choices: [
-            { name: 'Dockerfile', value: 'Dockerfile', checked: false },
-            { name: 'docker-compose.yml', value: 'docker-compose*.yml', checked: false },
-            { name: 'CI config (.circleci/, .travis.yml)', value: '.circleci/**', checked: false },
-            { name: 'Kubernetes manifests (k8s/)', value: 'k8s/**', checked: false },
-            { name: 'Terraform files (*.tf)', value: '**/*.tf', checked: false },
-            { name: 'Database migrations', value: '**/migrations/**', checked: false },
-            { name: 'Security policies', value: 'SECURITY.md', checked: false },
-          ],
-        },
-      ]);
-
-      // Update security config
-      try {
-        let secContent = fs.readFileSync(securityConfigPath, 'utf8');
-        
-        // Update merge_method
-        secContent = secContent.replace(
-          /merge_method:\s*\w+/,
-          `merge_method: ${securityAnswers.mergeMethod}`
-        );
-        
-        // Update audit_comments
-        secContent = secContent.replace(
-          /audit_comments:\s*(true|false)/,
-          `audit_comments: ${securityAnswers.auditComments}`
-        );
-        
-        // Update delete_branch
-        secContent = secContent.replace(
-          /delete_branch:\s*(true|false)/,
-          `delete_branch: ${securityAnswers.deleteBranch}`
-        );
-        
-        // Add additional protected paths
-        if (securityAnswers.additionalProtectedPaths.length > 0) {
-          const newPaths = securityAnswers.additionalProtectedPaths
-            .map(p => `  - "${p}"`)
-            .join('\n');
-          
-          // Find the end of protected_paths section and insert before settings
-          secContent = secContent.replace(
-            /(\n# Settings|settings:)/,
-            `\n  # Custom protected paths\n${newPaths}\n\n$1`
-          );
-        }
-        
-        fs.writeFileSync(securityConfigPath, secContent);
-        log.success('Security configuration updated');
-        
-      } catch (e) {
-        log.warning(`Could not update security config: ${e.message}`);
-      }
-    }
-  } else {
-    log.warning('Security config not found. Run: npx mayor-west-mode setup');
-  }
-
-  log.divider();
-
-  // Check for GH_AW_AGENT_TOKEN
-  console.log(chalk.cyan.bold('\n🔑 Personal Access Token Setup\n'));
-  console.log(chalk.gray('The orchestrator needs a Personal Access Token (PAT) to assign Copilot to issues.'));
-  console.log(chalk.gray('The default GITHUB_TOKEN does not have permission to assign bot accounts.\n'));
-  
-  console.log(chalk.yellow('Create a Fine-Grained PAT at:'));
-  console.log(chalk.cyan('  https://github.com/settings/personal-access-tokens/new\n'));
-  
-  console.log(chalk.gray('Required permissions:'));
-  console.log(chalk.gray('  • Repository access: ' + chalk.white(`${owner}/${repo}`)));
-  console.log(chalk.gray('  • Actions: Read and Write'));
-  console.log(chalk.gray('  • Contents: Read and Write'));
-  console.log(chalk.gray('  • Issues: Read and Write'));
-  console.log(chalk.gray('  • Pull requests: Read and Write\n'));
-  
-  console.log(chalk.yellow('Then add it as a repository secret:'));
-  console.log(chalk.cyan('  gh secret set GH_AW_AGENT_TOKEN\n'));
-
-  // Check fork PR workflow approval setting
-  console.log(chalk.cyan.bold('🔧 Fork PR Workflow Approval\n'));
-  console.log(chalk.gray('For Copilot PRs to run workflows without manual approval:\n'));
-  console.log(chalk.gray('  1. Go to: Settings → Actions → General'));
-  console.log(chalk.gray('  2. Under "Fork pull request workflows from contributors"'));
-  console.log(chalk.gray('  3. Select: "Require approval for first-time contributors who are new to GitHub"'));
-  console.log(chalk.gray('  4. Click Save\n'));
-
-  log.success('Configuration complete! Run: npx mayor-west-mode verify');
-}
-
-// ============================================================================
-// PAUSE/RESUME COMMANDS
-// ============================================================================
-
-async function runPauseFlow() {
-  log.header('Pausing Mayor West Mode');
-
-  const configPath = '.github/mayor-west.yml';
-  
-  if (!fs.existsSync(configPath)) {
-    log.error('Mayor West config not found. Run setup first: npx mayor-west-mode setup');
-    process.exit(1);
-  }
-
-  const spinner = ora('Updating configuration...').start();
-
-  try {
-    let content = fs.readFileSync(configPath, 'utf8');
-    
-    // Update enabled: true to enabled: false
-    if (content.includes('enabled: false')) {
-      spinner.warn('Mayor West Mode is already paused');
-      return;
-    }
-
-    content = content.replace(/^enabled:\s*true/m, 'enabled: false');
-    fs.writeFileSync(configPath, content);
-
-    spinner.succeed('Mayor West Mode paused');
-
-    console.log('\n' + chalk.yellow('🛑 Auto-merge is now DISABLED'));
-    console.log(chalk.gray('  Copilot PRs will not be automatically merged.'));
-    console.log(chalk.gray('  Manual review is required for all PRs.\n'));
-    
-    console.log(chalk.cyan('To resume:'));
-    console.log(chalk.gray('  npx mayor-west-mode resume\n'));
-
-    // Prompt to commit the change
-    const { shouldCommit } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'shouldCommit',
-        message: 'Commit this change to the repository?',
-        default: true,
-      },
-    ]);
-
-    if (shouldCommit) {
-      const commitSpinner = ora('Committing change...').start();
-      try {
-        execSync(`git add ${configPath}`, { stdio: 'ignore' });
-        execSync('git commit -m "[MAYOR] Pause autonomous mode"', { stdio: 'ignore' });
-        execSync('git push', { stdio: 'ignore' });
-        commitSpinner.succeed('Change committed and pushed');
-      } catch (e) {
-        commitSpinner.fail('Failed to commit: ' + e.message);
-      }
-    }
-
-  } catch (e) {
-    spinner.fail('Failed to pause: ' + e.message);
-    process.exit(1);
-  }
-}
-
-async function runResumeFlow() {
-  log.header('Resuming Mayor West Mode');
-
-  const configPath = '.github/mayor-west.yml';
-  
-  if (!fs.existsSync(configPath)) {
-    log.error('Mayor West config not found. Run setup first: npx mayor-west-mode setup');
-    process.exit(1);
-  }
-
-  const spinner = ora('Updating configuration...').start();
-
-  try {
-    let content = fs.readFileSync(configPath, 'utf8');
-    
-    // Update enabled: false to enabled: true
-    if (content.includes('enabled: true') && !content.includes('enabled: false')) {
-      spinner.warn('Mayor West Mode is already active');
-      return;
-    }
-
-    content = content.replace(/^enabled:\s*false/m, 'enabled: true');
-    fs.writeFileSync(configPath, content);
-
-    spinner.succeed('Mayor West Mode resumed');
-
-    console.log('\n' + chalk.green('🚀 Auto-merge is now ENABLED'));
-    console.log(chalk.gray('  Copilot PRs will be automatically merged (except protected paths).\n'));
-    
-    console.log(chalk.cyan('To pause:'));
-    console.log(chalk.gray('  npx mayor-west-mode pause\n'));
-
-    // Prompt to commit the change
-    const { shouldCommit } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'shouldCommit',
-        message: 'Commit this change to the repository?',
-        default: true,
-      },
-    ]);
-
-    if (shouldCommit) {
-      const commitSpinner = ora('Committing change...').start();
-      try {
-        execSync(`git add ${configPath}`, { stdio: 'ignore' });
-        execSync('git commit -m "[MAYOR] Resume autonomous mode"', { stdio: 'ignore' });
-        execSync('git push', { stdio: 'ignore' });
-        commitSpinner.succeed('Change committed and pushed');
-      } catch (e) {
-        commitSpinner.fail('Failed to commit: ' + e.message);
-      }
-    }
-
-  } catch (e) {
-    spinner.fail('Failed to resume: ' + e.message);
-    process.exit(1);
-  }
-}
-
 function showStatus() {
   log.header('Mayor West Mode Status');
 
@@ -1932,31 +755,6 @@ function showStatus() {
     const status = exists ? chalk.green('✓') : chalk.red('✗');
     console.log(chalk.gray(`  ${status} ${config.displayName}`));
   });
-
-  // Check security config status
-  const configPath = '.github/mayor-west.yml';
-  if (fs.existsSync(configPath)) {
-    console.log(chalk.cyan('\nSecurity Configuration:\n'));
-    try {
-      const content = fs.readFileSync(configPath, 'utf8');
-      const isEnabled = content.includes('enabled: true') && !content.includes('enabled: false');
-      
-      if (isEnabled) {
-        console.log(chalk.green('  🚀 Autonomous Mode: ACTIVE'));
-        console.log(chalk.gray('     Copilot PRs will auto-merge (except protected paths)'));
-      } else {
-        console.log(chalk.yellow('  🛑 Autonomous Mode: PAUSED'));
-        console.log(chalk.gray('     All PRs require manual review'));
-      }
-      
-      // Count protected paths
-      const pathMatches = content.match(/^\s*-\s*"/gm);
-      const pathCount = pathMatches ? pathMatches.length : 0;
-      console.log(chalk.gray(`  🛡️  Protected paths: ${pathCount} patterns defined`));
-    } catch (e) {
-      console.log(chalk.red('  ⚠️  Could not read security config'));
-    }
-  }
 
   console.log('\n');
 }
@@ -1985,7 +783,14 @@ function showVersion() {
 // ============================================================================
 
 async function main() {
-  const command = process.argv[2] || 'help';
+  const args = process.argv.slice(2);
+  const command = args[0] || 'help';
+
+  // Handle --version and -v flags
+  if (args.includes('--version') || args.includes('-v')) {
+    console.log(pkg.version);
+    return;
+  }
 
   try {
     switch (command) {
@@ -1994,15 +799,6 @@ async function main() {
         break;
       case 'verify':
         await runVerifyFlow();
-        break;
-      case 'configure':
-        await runConfigureFlow();
-        break;
-      case 'pause':
-        await runPauseFlow();
-        break;
-      case 'resume':
-        await runResumeFlow();
         break;
       case 'help':
         showHelp();

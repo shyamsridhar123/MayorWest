@@ -4,7 +4,9 @@
   "description": "Autonomous GitHub Copilot development workflow CLI - inspired by Family Guy's Mayor Adam West",
   "main": "index.js",
   "bin": {
-    "mayor-west-mode": "./cli.js"
+    "mayor-west-mode": "./cli.js",
+    "mayorwest": "./cli.js",
+    "mwm": "./cli.js"
   },
   "type": "module",
   "engines": {
