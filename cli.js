@@ -475,8 +475,7 @@ jobs:
         id: audit
         run: |
           echo "Running autonomous repository health audit..."
-          mkdir -p audit-results
-          npx mayor-west-mode audit --output audit-results/ || true
+          npx mayor-west-mode audit || true
           echo "Audit complete"
 
       - name: Check for Audit Findings
@@ -506,7 +505,7 @@ jobs:
             }
             
             const files = fs.readdirSync(auditDir);
-            console.log(\`Found \${files.length} audit findings\`);
+            console.log('Found ' + files.length + ' audit findings');
             
             for (const file of files) {
               const filePath = path.join(auditDir, file);
@@ -516,11 +515,11 @@ jobs:
               const titleMatch = content.match(/## Audit Finding: (.+)/);
               const category = titleMatch ? titleMatch[1] : 'unknown';
               
-              // Extract description
-              const descMatch = content.match(/\\*\\*Description\\*\\*:\\n(.+?)\\n\\n/s);
+              // Extract description from markdown
+              const descMatch = content.match(/\\*\\*Description\\*\\*:\\s*(.+?)\\n\\n/s);
               const description = descMatch ? descMatch[1].trim() : '';
               
-              const issueTitle = \`[MAYOR] Audit: \${category} - \${description.substring(0, 50)}...\`;
+              const issueTitle = '[MAYOR] Audit: ' + category + ' - ' + description.substring(0, 50) + '...';
               
               try {
                 const issue = await github.rest.issues.create({
@@ -531,9 +530,9 @@ jobs:
                   labels: ['mayor-task', 'audit', 'automated']
                 });
                 
-                console.log(\`✅ Created issue #\${issue.data.number}: \${issueTitle}\`);
+                console.log('✅ Created issue #' + issue.data.number + ': ' + issueTitle);
               } catch (error) {
-                console.log(\`❌ Failed to create issue: \${error.message}\`);
+                console.log('❌ Failed to create issue: ' + error.message);
               }
             }
 
