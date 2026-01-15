@@ -491,17 +491,42 @@ A human must review and merge this PR manually.
 *Mayor West Mode - Security Layer 2 (Protected Paths)*\\\`
             });
 
-      - name: Enable Auto-Merge
+      - name: Mark PR Ready and Enable Auto-Merge
         if: steps.security.outputs.allowed == 'true'
         uses: actions/github-script@v7
         with:
           github-token: \${{ secrets.GITHUB_TOKEN }}
           script: |
+            const prNodeId = context.payload.pull_request.node_id;
+            const prNumber = context.issue.number;
+            
+            // Step 1: Mark PR as ready (in case it's a draft)
+            if (context.payload.pull_request.draft) {
+              console.log('📝 PR is a draft, marking as ready for review...');
+              try {
+                await github.graphql(\\\`
+                  mutation {
+                    markPullRequestReadyForReview(input: {
+                      pullRequestId: "\\\${prNodeId}"
+                    }) {
+                      pullRequest {
+                        isDraft
+                      }
+                    }
+                  }
+                \\\`);
+                console.log('✅ PR marked as ready for review');
+              } catch (error) {
+                console.log('⚠️ Could not mark PR as ready:', error.message);
+              }
+            }
+            
+            // Step 2: Enable auto-merge
             try {
               await github.graphql(\\\`
                 mutation {
                   enablePullRequestAutoMerge(input: {
-                    pullRequestId: "\\\${context.payload.pull_request.node_id}"
+                    pullRequestId: "\\\${prNodeId}"
                     mergeMethod: SQUASH
                   }) {
                     pullRequest {
@@ -517,7 +542,7 @@ A human must review and merge this PR manually.
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
+                issue_number: prNumber,
                 body: \\\`## 🤖 Mayor West Auto-Merge Enabled
               
 ✅ All security checks passed:
@@ -531,7 +556,7 @@ This PR will merge automatically when all status checks pass.
 *Mayor West Mode v1.0.0*\\\`
               });
               
-              console.log('✅ Auto-merge enabled for PR #' + context.issue.number);
+              console.log('✅ Auto-merge enabled for PR #' + prNumber);
             } catch (error) {
               console.log('⚠️ Auto-merge could not be enabled:', error.message);
               console.log('Ensure "Allow auto-merge" is enabled in repository settings.');
@@ -543,7 +568,7 @@ This PR will merge automatically when all status checks pass.
           echo "⚠️ Auto-merge skipped: \${{ steps.security.outputs.reason }}"
 `,
 
-  '.github/workflows/mayor-west-orchestrator.yml': (options = {}) => `name: Mayor West Orchestrator
+  '.github/workflows/mayor-west-orchestrator.yml': (options = {}) => \`name: Mayor West Orchestrator
 
 on:
   workflow_dispatch:
