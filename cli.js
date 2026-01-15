@@ -116,6 +116,83 @@ function ensureDirectory(dir) {
   }
 }
 
+function isGHCLIAvailable() {
+  try {
+    execSync('gh --version', { stdio: 'ignore' });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function isGHCLIAuthenticated() {
+  try {
+    execSync('gh auth status', { stdio: 'ignore' });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function checkAutoMergeEnabled(owner, repo) {
+  try {
+    const result = execSync(`gh api repos/${owner}/${repo} --jq .allow_auto_merge`, { encoding: 'utf-8' }).trim();
+    return result === 'true';
+  } catch (e) {
+    return false;
+  }
+}
+
+function checkWorkflowPermissions(owner, repo) {
+  try {
+    const result = execSync(`gh api repos/${owner}/${repo}/actions/permissions/workflow --jq .default_workflow_permissions`, { encoding: 'utf-8' }).trim();
+    return result === 'write';
+  } catch (e) {
+    return false;
+  }
+}
+
+function checkBranchProtection(owner, repo, branch = 'main') {
+  try {
+    execSync(`gh api repos/${owner}/${repo}/branches/${branch}/protection`, { stdio: 'ignore' });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function checkSecretExists(owner, repo, secretName) {
+  try {
+    const result = execSync(`gh api repos/${owner}/${repo}/actions/secrets`, { encoding: 'utf-8' });
+    const secrets = JSON.parse(result);
+    return secrets.secrets.some(s => s.name === secretName);
+  } catch (e) {
+    return false;
+  }
+}
+
+function checkCopilotAgentAvailable(owner, repo) {
+  try {
+    const query = `query {
+      repository(owner: "${owner}", name: "${repo}") {
+        suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
+          nodes {
+            ... on Bot {
+              login
+            }
+          }
+        }
+      }
+    }`;
+    const result = execSync(`gh api graphql -f query='${query}'`, { encoding: 'utf-8' });
+    const data = JSON.parse(result);
+    const actors = data.data.repository.suggestedActors.nodes;
+    return actors.some(actor => actor.login === 'copilot-swe-agent');
+  } catch (e) {
+    return false;
+  }
+}
+
 // ============================================================================
 // FILE TEMPLATES
 // ============================================================================
@@ -687,30 +764,106 @@ async function runVerifyFlow() {
   checks.push({
     name: 'Git Repository',
     pass: isGitRepository(),
+    errorMsg: 'Not a git repository. Run: git init',
   });
 
   // Check files
   const fileChecks = Object.entries(FILES_TO_CREATE).map(([filePath, config]) => ({
     name: config.displayName,
     pass: fs.existsSync(filePath),
+    errorMsg: `File missing: ${filePath}. Run: npx mayor-west-mode setup`,
   }));
   checks.push(...fileChecks);
 
   // Check GitHub connection
   const remoteUrl = getGitRemoteUrl();
+  const hasGitHubRemote = remoteUrl !== null && remoteUrl.includes('github.com');
   checks.push({
     name: 'GitHub Remote',
-    pass: remoteUrl !== null && remoteUrl.includes('github.com'),
+    pass: hasGitHubRemote,
+    errorMsg: 'No GitHub remote found. Run: git remote add origin <url>',
   });
 
+  // GitHub Settings Checks (only if gh CLI is available)
+  const ghAvailable = isGHCLIAvailable();
+  const ghAuth = ghAvailable && isGHCLIAuthenticated();
+  
+  checks.push({
+    name: 'GitHub CLI (gh) installed',
+    pass: ghAvailable,
+    errorMsg: 'GitHub CLI not found. Install from: https://cli.github.com',
+  });
+
+  if (ghAvailable) {
+    checks.push({
+      name: 'GitHub CLI authenticated',
+      pass: ghAuth,
+      errorMsg: 'Not authenticated with GitHub CLI. Run: gh auth login',
+    });
+  }
+
+  // Only run GitHub API checks if gh CLI is available and authenticated
+  if (ghAuth && hasGitHubRemote) {
+    const gitHubInfo = parseGitHubUrl(remoteUrl);
+    if (gitHubInfo) {
+      const { owner, repo } = gitHubInfo;
+
+      // Check auto-merge
+      const autoMergeEnabled = checkAutoMergeEnabled(owner, repo);
+      checks.push({
+        name: 'Auto-merge enabled',
+        pass: autoMergeEnabled,
+        errorMsg: `Auto-merge not enabled. Fix: Settings → General → Pull Requests → ☑ Allow auto-merge\nOr run: gh api repos/${owner}/${repo} -X PATCH -f allow_auto_merge=true`,
+      });
+
+      // Check workflow permissions
+      const workflowPerms = checkWorkflowPermissions(owner, repo);
+      checks.push({
+        name: 'Workflow permissions (read-write)',
+        pass: workflowPerms,
+        errorMsg: `Workflow permissions not set to write. Fix: Settings → Actions → General → Workflow permissions → ☑ Read and write\nOr run: gh api repos/${owner}/${repo}/actions/permissions/workflow -X PUT -f default_workflow_permissions=write`,
+      });
+
+      // Check branch protection
+      const branchProtected = checkBranchProtection(owner, repo, 'main');
+      checks.push({
+        name: 'Branch protection (main)',
+        pass: branchProtected,
+        errorMsg: `Branch protection not configured. Fix: Settings → Branches → Add rule for 'main'\nOr run: npx mayor-west-mode configure`,
+      });
+
+      // Check GH_AW_AGENT_TOKEN secret
+      const secretExists = checkSecretExists(owner, repo, 'GH_AW_AGENT_TOKEN');
+      checks.push({
+        name: 'GH_AW_AGENT_TOKEN secret',
+        pass: secretExists,
+        errorMsg: `Secret not found. Create a Fine-Grained PAT at https://github.com/settings/personal-access-tokens/new\nThen run: gh secret set GH_AW_AGENT_TOKEN`,
+      });
+
+      // Check Copilot agent availability
+      const copilotAvailable = checkCopilotAgentAvailable(owner, repo);
+      checks.push({
+        name: 'Copilot coding agent available',
+        pass: copilotAvailable,
+        errorMsg: 'Copilot coding agent (copilot-swe-agent) not available for this repository. Ensure GitHub Copilot is enabled.',
+      });
+    }
+  }
+
   // Display results
+  log.divider();
+  console.log('');
+  
   let passed = 0;
   checks.forEach(check => {
     if (check.pass) {
       log.success(check.name);
       passed++;
     } else {
-      log.warning(check.name);
+      log.error(check.name);
+      if (check.errorMsg) {
+        console.log(chalk.gray(`  → ${check.errorMsg}`));
+      }
     }
   });
 
@@ -726,7 +879,10 @@ async function runVerifyFlow() {
     console.log('\nYour Mayor West Mode setup is complete and ready to use.\n');
     console.log('Next: Create a task and trigger the orchestrator workflow.\n');
   } else {
-    log.warning('Some checks failed. Run setup again to fix issues.\n');
+    log.warning('Some checks failed. See error messages above for fixes.\n');
+    if (!ghAvailable || !ghAuth) {
+      console.log(chalk.gray('Note: Install and authenticate with GitHub CLI to enable additional checks.\n'));
+    }
   }
 }
 
