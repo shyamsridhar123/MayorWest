@@ -597,54 +597,217 @@ async function runSetupFlow() {
 // ============================================================================
 
 async function runVerifyFlow() {
-  log.header('🔍 Verifying Setup');
+  log.header('🔍 Verifying Mayor West Mode Setup');
 
   const checks = [];
+  const warnings = [];
 
-  // Check git
+  // ── Core Infrastructure ──
+  console.log(chalk.cyan.bold('\n📁 Core Infrastructure\n'));
+
   checks.push({
     name: 'Git Repository',
     pass: isGitRepository(),
+    category: 'core',
   });
 
-  // Check files
-  const fileChecks = Object.entries(FILES_TO_CREATE).map(([filePath, config]) => ({
-    name: config.displayName,
-    pass: fs.existsSync(filePath),
-  }));
-  checks.push(...fileChecks);
-
-  // Check GitHub connection
   const remoteUrl = getGitRemoteUrl();
   checks.push({
     name: 'GitHub Remote',
     pass: remoteUrl !== null && remoteUrl.includes('github.com'),
+    category: 'core',
   });
 
-  // Display results
-  let passed = 0;
-  checks.forEach(check => {
-    if (check.pass) {
-      log.success(check.name);
-      passed++;
-    } else {
-      log.warning(check.name);
-    }
+  // Check core files
+  const coreFiles = [
+    { path: '.vscode/settings.json', name: 'VS Code YOLO Settings' },
+    { path: '.github/agents/mayor-west-mode.md', name: 'Agent Instructions' },
+    { path: '.github/workflows/mayor-west-auto-merge.yml', name: 'Auto-Merge Workflow' },
+    { path: '.github/workflows/mayor-west-orchestrator.yml', name: 'Orchestrator Workflow' },
+    { path: '.github/ISSUE_TEMPLATE/mayor-task.md', name: 'Task Template' },
+  ];
+
+  coreFiles.forEach(file => {
+    checks.push({
+      name: file.name,
+      pass: fs.existsSync(file.path),
+      category: 'core',
+    });
   });
+
+  // ── Security Layers ──
+  console.log(chalk.cyan.bold('🛡️  Security Layers\n'));
+
+  // Layer 1: CODEOWNERS
+  const codeownersExists = fs.existsSync('.github/CODEOWNERS');
+  checks.push({
+    name: 'Layer 1: CODEOWNERS (Actor Allowlist)',
+    pass: codeownersExists,
+    category: 'security',
+  });
+
+  // Layer 2: Protected Paths (in mayor-west.yml)
+  const mayorWestYml = fs.existsSync('.github/mayor-west.yml');
+  let protectedPathsConfigured = false;
+  if (mayorWestYml) {
+    try {
+      const content = fs.readFileSync('.github/mayor-west.yml', 'utf8');
+      protectedPathsConfigured = content.includes('protected_paths');
+    } catch (e) {}
+  }
+  checks.push({
+    name: 'Layer 2: Protected Paths Config',
+    pass: protectedPathsConfigured,
+    category: 'security',
+  });
+
+  // Layer 3: Kill Switch
+  let killSwitchEnabled = true; // Default to enabled (safe)
+  if (mayorWestYml) {
+    try {
+      const content = fs.readFileSync('.github/mayor-west.yml', 'utf8');
+      killSwitchEnabled = !content.includes('enabled: false');
+    } catch (e) {}
+  }
+  checks.push({
+    name: 'Layer 3: Kill Switch Active',
+    pass: killSwitchEnabled,
+    category: 'security',
+  });
+
+  // ── Copilot Integration ──
+  console.log(chalk.cyan.bold('🤖 Copilot Integration\n'));
+
+  checks.push({
+    name: 'Copilot Instructions (.github/copilot/instructions.md)',
+    pass: fs.existsSync('.github/copilot/instructions.md'),
+    category: 'copilot',
+  });
+
+  checks.push({
+    name: 'Project Instructions (.github/copilot-instructions.md)',
+    pass: fs.existsSync('.github/copilot-instructions.md'),
+    category: 'copilot',
+  });
+
+  checks.push({
+    name: 'Root Agent File (AGENTS.md)',
+    pass: fs.existsSync('AGENTS.md'),
+    category: 'copilot',
+  });
+
+  // ── Versioning ──
+  console.log(chalk.cyan.bold('📦 Versioning\n'));
+
+  checks.push({
+    name: 'Semantic Version Config (.versionrc.json)',
+    pass: fs.existsSync('.versionrc.json'),
+    category: 'versioning',
+  });
+
+  checks.push({
+    name: 'Changelog (CHANGELOG.md)',
+    pass: fs.existsSync('CHANGELOG.md'),
+    category: 'versioning',
+  });
+
+  checks.push({
+    name: 'Release Workflow (.github/workflows/release.yml)',
+    pass: fs.existsSync('.github/workflows/release.yml'),
+    category: 'versioning',
+  });
+
+  // ── GitHub Settings (require gh CLI) ──
+  console.log(chalk.cyan.bold('⚙️  GitHub Settings\n'));
+
+  let ghCliAvailable = false;
+  try {
+    execSync('gh auth status', { stdio: 'pipe' });
+    ghCliAvailable = true;
+  } catch (e) {}
+
+  if (ghCliAvailable && remoteUrl) {
+    try {
+      // Check auto-merge setting
+      const repoInfo = execSync('gh api repos/{owner}/{repo} --jq ".allow_auto_merge"', { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      }).trim();
+      checks.push({
+        name: 'Auto-Merge Enabled',
+        pass: repoInfo === 'true',
+        category: 'github',
+      });
+    } catch (e) {
+      warnings.push('Could not check GitHub auto-merge setting');
+    }
+
+    try {
+      // Check delete branch on merge
+      const deleteBranch = execSync('gh api repos/{owner}/{repo} --jq ".delete_branch_on_merge"', { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      }).trim();
+      checks.push({
+        name: 'Delete Branch on Merge',
+        pass: deleteBranch === 'true',
+        category: 'github',
+      });
+    } catch (e) {
+      warnings.push('Could not check delete branch setting');
+    }
+  } else {
+    checks.push({
+      name: 'GitHub CLI Authentication',
+      pass: false,
+      category: 'github',
+    });
+  }
+
+  // ── Display Results ──
+  log.divider();
+  console.log(chalk.cyan.bold('\n📊 Results\n'));
+
+  const categories = ['core', 'security', 'copilot', 'versioning', 'github'];
+  let totalPassed = 0;
+  let totalChecks = 0;
+
+  categories.forEach(cat => {
+    const catChecks = checks.filter(c => c.category === cat);
+    if (catChecks.length === 0) return;
+
+    const catPassed = catChecks.filter(c => c.pass).length;
+    totalPassed += catPassed;
+    totalChecks += catChecks.length;
+
+    catChecks.forEach(check => {
+      if (check.pass) {
+        log.success(check.name);
+      } else {
+        log.warning(check.name);
+      }
+    });
+    console.log('');
+  });
+
+  if (warnings.length > 0) {
+    console.log(chalk.yellow('Warnings:'));
+    warnings.forEach(w => console.log(chalk.gray(`  ⚠ ${w}`)));
+    console.log('');
+  }
 
   log.divider();
-
-  const total = checks.length;
   console.log(
-    `\nResult: ${chalk.bold(passed)}/${chalk.bold(total)} checks passed\n`
+    `\n${chalk.bold('Score:')} ${chalk.green(totalPassed)}/${chalk.bold(totalChecks)} checks passed\n`
   );
 
-  if (passed === total) {
+  if (totalPassed === totalChecks) {
     log.success(chalk.bold('All systems go! 🚀'));
-    console.log('\nYour Mayor West Mode setup is complete and ready to use.\n');
-    console.log('Next: Create a task and trigger the orchestrator workflow.\n');
+    console.log('\nMayor West Mode is fully configured and ready.\n');
+  } else if (totalPassed >= totalChecks * 0.7) {
+    log.info('Mostly configured - some optional features missing.\n');
   } else {
-    log.warning('Some checks failed. Run setup again to fix issues.\n');
+    log.warning('Setup incomplete. Run `mayorwest setup` to configure.\n');
   }
 }
 
