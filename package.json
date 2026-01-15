@@ -18,7 +18,9 @@
     "examples": "node cli.js examples",
     "status": "node cli.js status",
     "dev": "node cli.js",
-    "test": "jest",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

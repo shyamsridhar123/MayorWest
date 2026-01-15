@@ -251,42 +251,38 @@ jobs:
     if: github.actor == 'copilot' || github.actor == 'copilot[bot]'
     
     steps:
-      - name: Approve Pull Request
-        uses: actions/github-script@v7
-        with:
-          github-token: \${{ secrets.GITHUB_TOKEN }}
-          script: |
-            github.rest.pulls.createReview({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              event: 'APPROVE',
-              body: '✅ Auto-approved by Mayor West Mode'
-            });
-
       - name: Enable Auto-Merge
         uses: actions/github-script@v7
         with:
           github-token: \${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { data } = await github.graphql(\`
-              mutation {
-                enablePullRequestAutoMerge(input: {
-                  pullRequestId: "\${context.payload.pull_request.node_id}"
-                  mergeMethod: SQUASH
-                }) {
-                  pullRequest {
-                    id
-                    title
-                    autoMergeRequest {
-                      enabledAt
-                      mergeMethod
+            try {
+              await github.graphql(\`
+                mutation {
+                  enablePullRequestAutoMerge(input: {
+                    pullRequestId: "\${context.payload.pull_request.node_id}"
+                    mergeMethod: SQUASH
+                  }) {
+                    pullRequest {
+                      id
+                      title
+                      autoMergeRequest {
+                        enabledAt
+                        mergeMethod
+                      }
                     }
                   }
                 }
-              }
-            \`);
-            console.log('Auto-merge enabled:', data);
+              \`);
+              console.log('✅ Auto-merge enabled for PR #' + context.issue.number);
+              console.log('Note: PR will merge automatically once all required status checks pass.');
+            } catch (error) {
+              console.log('⚠️  Auto-merge could not be enabled:', error.message);
+              console.log('This is expected if:');
+              console.log('  - Repository does not have "Allow auto-merge" enabled in settings');
+              console.log('  - Branch protection rules are not configured');
+              console.log('  - Required status checks are not defined');
+            }
 `,
 
   '.github/workflows/mayor-west-orchestrator.yml': () => `name: Mayor West Orchestrator

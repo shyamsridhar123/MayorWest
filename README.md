@@ -109,6 +109,35 @@ your-repo/
 | [cli-guide.md](Docs/cli-guide.md) | Detailed CLI user guide |
 | [mayor_west_mode_trd.md](Docs/mayor_west_mode_trd.md) | Technical Requirements Document |
 | [mayor_west_quick_ref.md](Docs/mayor_west_quick_ref.md) | Quick reference card |
+| [testing-guide.md](Docs/testing-guide.md) | Comprehensive testing guide |
+| [test-execution-report.md](Docs/test-execution-report.md) | Test execution report |
+
+---
+
+## Testing
+
+The CLI has been comprehensively tested with 30 automated tests covering all core functionality.
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+**Test Coverage:**
+- ✅ GitHub URL parsing (HTTPS & SSH)
+- ✅ File template validation (all 5 files)
+- ✅ Configuration validation
+- ✅ Security constraints (YOLO mode)
+- ✅ Error handling & edge cases
+- ✅ All CLI commands (setup, verify, status, help, examples)
+
+See [testing-guide.md](Docs/testing-guide.md) for detailed testing information.
 
 ---
 
@@ -119,10 +148,12 @@ your-repo/
 - ✅ YOLO auto-approval for safe commands
 - ✅ Auto-merge workflow pipeline
 - ✅ Task queue orchestration
+- ✅ Comprehensive test suite (30 tests)
 
 **What's in progress:**
 - ⚠️ Complex multi-file refactors may need task splitting
 - ⚠️ Cross-repository dependencies not supported
+- ⚠️ PR auto-approval not supported (GitHub limitation)
 
 ---
 
