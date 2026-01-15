@@ -9,9 +9,9 @@ on:
     - cron: '*/15 * * * *'
 
 permissions:
-  contents: write
+  contents: read
   issues: write
-  pull-requests: write
+  pull-requests: read
 
 jobs:
   orchestrate:
@@ -41,7 +41,7 @@ jobs:
             }
             
             const task = issues[0];
-            console.log(`Found task: #${task.number} - ${task.title}`);
+            console.log(\`Found task: #\${task.number} - \${task.title}\`);
             
             core.setOutput('task_number', task.number);
             core.setOutput('found', 'true');
@@ -58,7 +58,7 @@ jobs:
             
             // Step 1: Find Copilot agent ID using suggestedActors query
             console.log('Looking for copilot coding agent...');
-            const findAgentQuery = `
+            const findAgentQuery = \`
               query($owner: String!, $repo: String!) {
                 repository(owner: $owner, name: $repo) {
                   suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
@@ -72,7 +72,7 @@ jobs:
                   }
                 }
               }
-            `;
+            \`;
             
             const agentResponse = await github.graphql(findAgentQuery, { owner, repo });
             const actors = agentResponse.repository.suggestedActors.nodes;
@@ -83,10 +83,10 @@ jobs:
               throw new Error('Copilot coding agent (copilot-swe-agent) is not available for this repository');
             }
             
-            console.log(`Found copilot agent with ID: ${copilotAgent.id}`);
+            console.log(\`Found copilot agent with ID: \${copilotAgent.id}\`);
             
             // Step 2: Get issue ID and current assignees
-            const issueQuery = `
+            const issueQuery = \`
               query($owner: String!, $repo: String!, $issueNumber: Int!) {
                 repository(owner: $owner, name: $repo) {
                   issue(number: $issueNumber) {
@@ -97,99 +97,42 @@ jobs:
                   }
                 }
               }
-            `;
+            \`;
             
-            const issueResponse = await github.graphql(issueQuery, { owner, repo, issueNumber: taskNumber });
+            const issueResponse = await github.graphql(issueQuery, { 
+              owner, 
+              repo, 
+              issueNumber: taskNumber 
+            });
+            
             const issueId = issueResponse.repository.issue.id;
             const currentAssignees = issueResponse.repository.issue.assignees.nodes.map(a => a.id);
             
-            console.log(`Issue ID: ${issueId}`);
-            
             // Step 3: Assign Copilot using replaceActorsForAssignable mutation
-            const actorIds = [copilotAgent.id, ...currentAssignees.filter(id => id !== copilotAgent.id)];
-            
-            const assignMutation = `
+            const assignMutation = \`
               mutation($assignableId: ID!, $actorIds: [ID!]!) {
                 replaceActorsForAssignable(input: {
                   assignableId: $assignableId,
                   actorIds: $actorIds
                 }) {
-                  __typename
+                  assignable {
+                    ... on Issue {
+                      id
+                      number
+                      assignees(first: 10) {
+                        nodes { login }
+                      }
+                    }
+                  }
                 }
               }
-            `;
+            \`;
             
-            await github.graphql(assignMutation, { assignableId: issueId, actorIds });
-            console.log(`Successfully assigned Copilot to issue #${taskNumber}`);
-
-  # Job 2: Merge ready Copilot PRs (bypasses workflow approval requirement)
-  merge-copilot-prs:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Find and Merge Copilot PRs
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            
-            // Find open PRs from Copilot
-            const { data: prs } = await github.rest.pulls.list({
-              owner,
-              repo,
-              state: 'open',
-              sort: 'created',
-              direction: 'asc'
+            const newAssignees = [...currentAssignees, copilotAgent.id];
+            const assignResponse = await github.graphql(assignMutation, {
+              assignableId: issueId,
+              actorIds: newAssignees
             });
             
-            const copilotPRs = prs.filter(pr => 
-              pr.user.login === 'copilot' || 
-              pr.user.login.includes('copilot')
-            );
-            
-            if (copilotPRs.length === 0) {
-              console.log('No open Copilot PRs found');
-              return;
-            }
-            
-            for (const pr of copilotPRs) {
-              console.log(`Processing PR #${pr.number}: ${pr.title}`);
-              
-              // Skip draft PRs
-              if (pr.draft) {
-                console.log(`  Skipping: PR is still a draft`);
-                continue;
-              }
-              
-              // Check if PR is mergeable
-              const { data: prDetails } = await github.rest.pulls.get({
-                owner,
-                repo,
-                pull_number: pr.number
-              });
-              
-              if (prDetails.mergeable_state === 'dirty') {
-                console.log(`  Skipping: PR has merge conflicts`);
-                continue;
-              }
-              
-              if (prDetails.mergeable_state === 'blocked') {
-                console.log(`  Skipping: PR is blocked (status checks pending)`);
-                continue;
-              }
-              
-              // Merge the PR
-              try {
-                await github.rest.pulls.merge({
-                  owner,
-                  repo,
-                  pull_number: pr.number,
-                  merge_method: 'squash'
-                });
-                console.log(`  ✅ Merged PR #${pr.number}`);
-              } catch (error) {
-                console.log(`  ⚠️ Could not merge: ${error.message}`);
-              }
-            }
+            const assignedLogins = assignResponse.replaceActorsForAssignable.assignable.assignees.nodes.map(a => a.login);
+            console.log(\`✅ Assigned to issue #\${taskNumber}: \${assignedLogins.join(', ')}\`);
