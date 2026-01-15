@@ -2,18 +2,15 @@ name: Mayor West Orchestrator
 # Autonomous task assignment and PR merge workflow
 # Triggers:
 # - Immediately when mayor-task issue is created/labeled
+# - When PR is opened (to merge Copilot PRs)
 # - When PR is closed (to pick up next task)
-# - Every 5 minutes as backup
 
 on:
   workflow_dispatch:
   issues:
     types: [opened, labeled]
   pull_request:
-    types: [closed]
-    paths: []
-  schedule:
-    - cron: '*/5 * * * *'  # Backup polling
+    types: [opened, synchronize, closed]
 
 permissions:
   contents: write
