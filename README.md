@@ -182,6 +182,7 @@ npx mayor-west-mode status
 
 | Document | Description |
 |----------|-------------|
+| [philosophy.md](Docs/philosophy.md) | **The Philosophy of Mayor West Mode** — Deep exploration of our autonomous coding philosophy |
 | [CLI-README.md](Docs/CLI-README.md) | Complete README with all features |
 | [cli-guide.md](Docs/cli-guide.md) | Detailed CLI user guide |
 | [mayor_west_mode_trd.md](Docs/mayor_west_mode_trd.md) | Technical Requirements Document |
@@ -236,12 +237,41 @@ See [testing-guide.md](Docs/testing-guide.md) for detailed testing information.
 
 ## The Mayor West Mindset
 
-> *"I don't ask for permission. I execute with confidence. I iterate when I fail. I deliver results through unconventional means."*
+<p align="center">
+  <em>"I don't need your approval. I'm the mayor."</em>
+</p>
 
-- **Eccentric Autonomy** — Decides without waiting
-- **Unwavering Confidence** — Proceeds despite chaos
-- **Iterative Resilience** — Retries on failure
-- **Unconventional Effectiveness** — Gets results
+Mayor Adam West of Quahog embodies a paradox: **absolute confidence within absurdity**. He doesn't question whether his actions make sense. He doesn't wait for approval. He simply *acts*—and somehow, against all odds, things get done.
+
+**Mayor West Mode applies this philosophy to autonomous development:**
+
+| Philosophical Concept | Mayor West Interpretation | How We Implement It |
+|-----------------------|---------------------------|---------------------|
+| **Kierkegaard's Leap of Faith** | Trust without constant verification | Configure once, then let the AI execute |
+| **Nietzsche's Apollonian/Dionysian** | Order + Chaos in harmony | Security guardrails + autonomous creativity |
+| **Heidegger's Ready-to-Hand** | Tools that disappear into use | Issues → PRs → Merges without interruption |
+| **Camus' Absurd Rebellion** | Meaning through action, not outcome | Iterate faster than entropy accumulates |
+| **Taoist Wu Wei** | Effortless action, natural flow | Orchestrator runs on schedule, not command |
+
+### The Four Pillars
+
+| Pillar | Meaning |
+|--------|---------|
+| 🎭 **Eccentric Autonomy** | Decides without waiting for permission |
+| 💪 **Unwavering Confidence** | Proceeds despite chaos and uncertainty |
+| 🔄 **Iterative Resilience** | Fails forward, retries without complaint |
+| 🎯 **Unconventional Effectiveness** | Gets results through unexpected means |
+
+### The Manifesto
+
+> *I am not a micromanager. I am a Mayor.*  
+> *I do not approve every action. I set policies.*  
+> *I do not watch every commit. I review outcomes.*  
+> *I do not fear the AI. I configure its boundaries.*  
+> *I am not controlling. I am trusting.*  
+> *I am not blocked. I am in flow.*
+
+📖 **Read the full philosophy**: [The Philosophy of Mayor West Mode](Docs/philosophy.md)
 
 ---
 
