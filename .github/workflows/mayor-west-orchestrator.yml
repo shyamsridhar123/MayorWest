@@ -148,10 +148,19 @@ jobs:
               direction: 'asc'
             });
             
-            const copilotPRs = prs.filter(pr => 
-              pr.user.login === 'copilot' || 
-              pr.user.login.includes('copilot')
-            );
+            console.log(`Found ${prs.length} open PRs`);
+            
+            // Filter for Copilot PRs - check various login formats
+            const copilotPRs = prs.filter(pr => {
+              const login = pr.user.login.toLowerCase();
+              const isCopilot = login === 'copilot' || 
+                                login === 'copilot-swe-agent' ||
+                                login.includes('copilot');
+              if (isCopilot) {
+                console.log(`  Found Copilot PR #${pr.number} by ${pr.user.login}`);
+              }
+              return isCopilot;
+            });
             
             if (copilotPRs.length === 0) {
               console.log('No open Copilot PRs found');
