@@ -969,39 +969,47 @@ async function runSetupFlow() {
 
   log.divider();
 
-  // Step 6: Workflow Permissions
+  // Step 6: Workflow Permissions (Auto-configure via API)
   log.header('🔐 Step 3: Workflow Permissions');
 
-  console.log(chalk.cyan('\nCRITICAL: Enable these settings for autonomous operation:\n'));
-  console.log(chalk.white('1. Workflow Permissions:'));
-  console.log(chalk.gray('   GitHub → Settings → Actions → General'));
-  console.log(chalk.gray('   └─ Workflow permissions:'));
-  console.log(chalk.green('      ◉ Read and write permissions'));
-  console.log(chalk.green('      ☑ Allow GitHub Actions to create and approve pull requests'));
+  console.log(chalk.cyan('\nConfiguring workflow permissions for autonomous operation...\n'));
 
-  const workflowConfirm = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'workflowPermissionsSet',
-      message: 'Have you enabled workflow permissions? (Open browser to configure)',
-      default: false,
-    },
-  ]);
-
-  if (!workflowConfirm.workflowPermissionsSet) {
-    const actionsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/actions`;
-    if (!openUrl(actionsUrl)) {
-      console.log(chalk.gray(`\n   Open: ${actionsUrl}`));
+  if (ghCliAvailable) {
+    // Configure workflow permissions via API
+    try {
+      // Set default workflow permissions to "write" and enable PR approvals
+      execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/actions/permissions/workflow -X PUT -f default_workflow_permissions=write -F can_approve_pull_request_reviews=true --silent`, { stdio: 'pipe' });
+      ora().succeed('Workflow permissions set to "Read and write"');
+      ora().succeed('GitHub Actions can now approve pull requests');
+    } catch (e) {
+      // Fallback to manual if API fails
+      console.log(chalk.yellow('\n⚠ Could not auto-configure workflow permissions (may require admin access)'));
+      console.log(chalk.white('\nManual configuration required:'));
+      console.log(chalk.gray('   GitHub → Settings → Actions → General'));
+      console.log(chalk.gray('   └─ Workflow permissions:'));
+      console.log(chalk.green('      ◉ Read and write permissions'));
+      console.log(chalk.green('      ☑ Allow GitHub Actions to create and approve pull requests'));
+      
+      const actionsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/actions`;
+      if (!openUrl(actionsUrl)) {
+        console.log(chalk.gray(`\n   Open: ${actionsUrl}`));
+      }
+      
+      await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'continue',
+          message: 'Press Enter when ready to continue...',
+          default: true,
+        },
+      ]);
     }
-    
-    await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'continue',
-        message: 'Press Enter when ready to continue...',
-        default: true,
-      },
-    ]);
+  } else {
+    console.log(chalk.yellow('\nManual configuration required (gh CLI not available):'));
+    console.log(chalk.gray('   GitHub → Settings → Actions → General'));
+    console.log(chalk.gray('   └─ Workflow permissions:'));
+    console.log(chalk.green('      ◉ Read and write permissions'));
+    console.log(chalk.green('      ☑ Allow GitHub Actions to create and approve pull requests'));
   }
 
   log.divider();
