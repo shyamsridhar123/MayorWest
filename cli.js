@@ -1009,105 +1009,199 @@ async function runSetupFlow() {
   // Step 7: PAT Token Setup (CRITICAL for Copilot assignment)
   log.header('🔑 Step 4: Personal Access Token (PAT) Setup');
 
-  console.log(chalk.red.bold('\n⚠️  REQUIRED for Copilot auto-assignment!\n'));
-  console.log(chalk.white('The orchestrator workflow needs a PAT to assign Copilot to issues.'));
-  console.log(chalk.white('Without this, issues won\'t be automatically picked up by Copilot.\n'));
-
-  console.log(chalk.cyan('Create a Fine-Grained Personal Access Token:\n'));
-  console.log(chalk.gray('1. Go to: https://github.com/settings/tokens?type=beta'));
-  console.log(chalk.gray('2. Click "Generate new token"'));
-  console.log(chalk.gray('3. Configure token settings:'));
-  console.log(chalk.gray('   ├─ Token name: ' + chalk.white('Mayor West Agent Token')));
-  console.log(chalk.gray('   ├─ Expiration: ' + chalk.white('90 days') + chalk.gray(' (or custom)')));
-  console.log(chalk.gray('   ├─ Description: ' + chalk.white('Enables Copilot auto-assignment for Mayor West Mode')));
-  console.log(chalk.gray('   └─ Resource owner: ' + chalk.cyan(`${gitHubInfo.owner}`)));
-  console.log(chalk.gray(''));
-  console.log(chalk.gray('4. Repository access:'));
-  console.log(chalk.gray('   ├─ ◉ ' + chalk.white('Only select repositories')));
-  console.log(chalk.gray('   └─ Select: ' + chalk.cyan(`${gitHubInfo.owner}/${gitHubInfo.repo}`)));
-  console.log(chalk.gray(''));
-  console.log(chalk.gray('5. Repository permissions ' + chalk.yellow('(expand this section)') + ':'));
-  console.log(chalk.green('   ├─ Actions: ') + chalk.white('Read-only') + chalk.gray(' (view workflow runs)'));
-  console.log(chalk.green('   ├─ Contents: ') + chalk.white('Read and write') + chalk.gray(' (for PR merging)'));
-  console.log(chalk.green('   ├─ Issues: ') + chalk.white('Read and write') + chalk.gray(' (assign Copilot, add comments)'));
-  console.log(chalk.green('   ├─ Metadata: ') + chalk.white('Read-only') + chalk.gray(' (auto-selected, required)'));
-  console.log(chalk.green('   └─ Pull requests: ') + chalk.white('Read and write') + chalk.gray(' (for auto-merge)'));
-  console.log(chalk.gray(''));
-  console.log(chalk.gray('6. Account permissions: ' + chalk.white('No access needed') + chalk.gray(' (leave all as default)')));
-  console.log(chalk.gray(''));
-  console.log(chalk.gray('7. Click ' + chalk.white('"Generate token"') + ' and ' + chalk.red('copy it immediately!')));
-  console.log(chalk.yellow('   ⚠ You won\'t be able to see it again after leaving the page.'));
-
-  const patPrompt = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'openTokenPage',
-      message: 'Open GitHub token creation page in browser?',
-      default: true,
-    },
-  ]);
-
-  if (patPrompt.openTokenPage) {
-    const tokenUrl = 'https://github.com/settings/tokens?type=beta';
-    if (!openUrl(tokenUrl)) {
-      console.log(chalk.gray(`\n   Open: ${tokenUrl}`));
-    }
+  // Check if secret already exists
+  let secretExists = false;
+  if (ghCliAvailable) {
+    try {
+      const secrets = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/actions/secrets --jq ".secrets[].name"`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      });
+      secretExists = secrets.includes('GH_AW_AGENT_TOKEN');
+    } catch (e) {}
   }
 
-  console.log(chalk.cyan('\n5. Add the token as a repository secret:\n'));
-  console.log(chalk.gray(`   GitHub → ${gitHubInfo.owner}/${gitHubInfo.repo} → Settings → Secrets → Actions`));
-  console.log(chalk.gray('   └─ New repository secret:'));
-  console.log(chalk.green('      Name: GH_AW_AGENT_TOKEN'));
-  console.log(chalk.green('      Value: <paste your token>'));
-
-  const secretPrompt = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'secretMethod',
-      message: 'How would you like to add the secret?',
-      choices: [
-        { name: 'I\'ll add it manually in GitHub', value: 'manual' },
-        { name: 'Use gh CLI to add it now (paste token)', value: 'cli' },
-        { name: 'Skip for now (auto-assignment won\'t work)', value: 'skip' },
-      ],
-    },
-  ]);
-
-  if (secretPrompt.secretMethod === 'cli' && ghCliAvailable) {
-    const tokenInput = await inquirer.prompt([
-      {
-        type: 'password',
-        name: 'token',
-        message: 'Paste your PAT token:',
-        mask: '*',
-      },
-    ]);
-
-    if (tokenInput.token) {
-      try {
-        execSync(`gh secret set GH_AW_AGENT_TOKEN --body "${tokenInput.token}" --repo ${gitHubInfo.owner}/${gitHubInfo.repo}`, { stdio: 'pipe' });
-        log.success('Secret GH_AW_AGENT_TOKEN added successfully!');
-      } catch (e) {
-        log.error('Failed to add secret. Please add it manually.');
-        console.log(chalk.gray(`   https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`));
-      }
-    }
-  } else if (secretPrompt.secretMethod === 'manual') {
-    const secretsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`;
-    if (!openUrl(secretsUrl)) {
-      console.log(chalk.gray(`\n   Open: ${secretsUrl}`));
-    }
-    
-    await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'continue',
-        message: 'Press Enter when you\'ve added the secret...',
-        default: true,
-      },
-    ]);
+  if (secretExists) {
+    log.success('GH_AW_AGENT_TOKEN secret already configured!');
+    console.log(chalk.gray('   └─ Copilot auto-assignment is ready to work.'));
   } else {
-    log.warning('Skipped PAT setup - Copilot auto-assignment will not work');
+    console.log(chalk.red.bold('\n⚠️  REQUIRED for Copilot auto-assignment!\n'));
+    console.log(chalk.white('The orchestrator workflow needs a PAT to assign Copilot to issues.'));
+    console.log(chalk.white('Without this, issues won\'t be automatically picked up by Copilot.\n'));
+
+    // Ask if they have an existing token
+    const existingTokenPrompt = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'hasExistingToken',
+        message: 'Do you have an existing Mayor West PAT token?',
+        choices: [
+          { name: 'Yes, I have a token I can reuse', value: 'reuse' },
+          { name: 'No, I need to create a new token', value: 'create' },
+          { name: 'Skip for now (auto-assignment won\'t work)', value: 'skip' },
+        ],
+      },
+    ]);
+
+    if (existingTokenPrompt.hasExistingToken === 'reuse') {
+      console.log(chalk.cyan('\n📝 Reusing existing token\n'));
+      console.log(chalk.gray('If your token has "All repositories" access, it will work for this repo.'));
+      console.log(chalk.gray('If it\'s scoped to specific repos, you may need to edit the token to add this repo.'));
+      console.log(chalk.gray(''));
+      console.log(chalk.gray('To edit an existing token:'));
+      console.log(chalk.gray('   1. Go to: https://github.com/settings/tokens?type=beta'));
+      console.log(chalk.gray('   2. Click on your token name'));
+      console.log(chalk.gray('   3. Under "Repository access", add ' + chalk.cyan(`${gitHubInfo.owner}/${gitHubInfo.repo}`)));
+      console.log(chalk.gray(''));
+
+      const reusePrompt = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'addMethod',
+          message: 'How would you like to add the secret to this repo?',
+          choices: [
+            { name: 'Use gh CLI to add it now (paste token)', value: 'cli' },
+            { name: 'I\'ll add it manually in GitHub', value: 'manual' },
+          ],
+        },
+      ]);
+
+      if (reusePrompt.addMethod === 'cli' && ghCliAvailable) {
+        const tokenInput = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'token',
+            message: 'Paste your existing PAT token:',
+            mask: '*',
+          },
+        ]);
+
+        if (tokenInput.token) {
+          try {
+            execSync(`gh secret set GH_AW_AGENT_TOKEN --body "${tokenInput.token}" --repo ${gitHubInfo.owner}/${gitHubInfo.repo}`, { stdio: 'pipe' });
+            log.success('Secret GH_AW_AGENT_TOKEN added successfully!');
+          } catch (e) {
+            log.error('Failed to add secret. Please add it manually.');
+            const secretsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`;
+            console.log(chalk.gray(`   ${secretsUrl}`));
+          }
+        }
+      } else {
+        const secretsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`;
+        if (!openUrl(secretsUrl)) {
+          console.log(chalk.gray(`\n   Open: ${secretsUrl}`));
+        }
+        console.log(chalk.cyan('\nAdd a new repository secret:'));
+        console.log(chalk.green('   Name: GH_AW_AGENT_TOKEN'));
+        console.log(chalk.green('   Value: <paste your existing token>'));
+        
+        await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'continue',
+            message: 'Press Enter when you\'ve added the secret...',
+            default: true,
+          },
+        ]);
+      }
+    } else if (existingTokenPrompt.hasExistingToken === 'create') {
+      console.log(chalk.cyan('\n📝 Create a Fine-Grained Personal Access Token:\n'));
+      console.log(chalk.yellow('💡 Tip: Create one token with "All repositories" access to reuse across all Mayor West repos!\n'));
+      console.log(chalk.gray('1. Go to: https://github.com/settings/tokens?type=beta'));
+      console.log(chalk.gray('2. Click "Generate new token"'));
+      console.log(chalk.gray('3. Configure token settings:'));
+      console.log(chalk.gray('   ├─ Token name: ' + chalk.white('Mayor West Agent Token')));
+      console.log(chalk.gray('   ├─ Expiration: ' + chalk.white('90 days') + chalk.gray(' (or longer for less maintenance)')));
+      console.log(chalk.gray('   ├─ Description: ' + chalk.white('Enables Copilot auto-assignment for Mayor West Mode')));
+      console.log(chalk.gray('   └─ Resource owner: ' + chalk.cyan(`${gitHubInfo.owner}`)));
+      console.log(chalk.gray(''));
+      console.log(chalk.gray('4. Repository access ' + chalk.yellow('(choose one)') + ':'));
+      console.log(chalk.green('   ◉ All repositories') + chalk.gray(' ← Recommended! Reuse for all repos'));
+      console.log(chalk.gray('   ○ Only select repositories → Select: ' + chalk.cyan(`${gitHubInfo.owner}/${gitHubInfo.repo}`)));
+      console.log(chalk.gray(''));
+      console.log(chalk.gray('5. Repository permissions ' + chalk.yellow('(expand this section)') + ':'));
+      console.log(chalk.green('   ├─ Actions: ') + chalk.white('Read-only') + chalk.gray(' (view workflow runs)'));
+      console.log(chalk.green('   ├─ Contents: ') + chalk.white('Read and write') + chalk.gray(' (for PR merging)'));
+      console.log(chalk.green('   ├─ Issues: ') + chalk.white('Read and write') + chalk.gray(' (assign Copilot, add comments)'));
+      console.log(chalk.green('   ├─ Metadata: ') + chalk.white('Read-only') + chalk.gray(' (auto-selected, required)'));
+      console.log(chalk.green('   └─ Pull requests: ') + chalk.white('Read and write') + chalk.gray(' (for auto-merge)'));
+      console.log(chalk.gray(''));
+      console.log(chalk.gray('6. Account permissions: ' + chalk.white('No access needed') + chalk.gray(' (leave all as default)')));
+      console.log(chalk.gray(''));
+      console.log(chalk.gray('7. Click ' + chalk.white('"Generate token"') + ' and ' + chalk.red('copy it immediately!')));
+      console.log(chalk.yellow('   ⚠ You won\'t be able to see it again after leaving the page.'));
+
+      const patPrompt = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'openTokenPage',
+          message: 'Open GitHub token creation page in browser?',
+          default: true,
+        },
+      ]);
+
+      if (patPrompt.openTokenPage) {
+        const tokenUrl = 'https://github.com/settings/tokens?type=beta';
+        if (!openUrl(tokenUrl)) {
+          console.log(chalk.gray(`\n   Open: ${tokenUrl}`));
+        }
+      }
+
+      console.log(chalk.cyan('\n8. Add the token as a repository secret:\n'));
+      console.log(chalk.gray(`   GitHub → ${gitHubInfo.owner}/${gitHubInfo.repo} → Settings → Secrets → Actions`));
+      console.log(chalk.gray('   └─ New repository secret:'));
+      console.log(chalk.green('      Name: GH_AW_AGENT_TOKEN'));
+      console.log(chalk.green('      Value: <paste your token>'));
+
+      const secretPrompt = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'secretMethod',
+          message: 'How would you like to add the secret?',
+          choices: [
+            { name: 'Use gh CLI to add it now (paste token)', value: 'cli' },
+            { name: 'I\'ll add it manually in GitHub', value: 'manual' },
+          ],
+        },
+      ]);
+
+      if (secretPrompt.secretMethod === 'cli' && ghCliAvailable) {
+        const tokenInput = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'token',
+            message: 'Paste your PAT token:',
+            mask: '*',
+          },
+        ]);
+
+        if (tokenInput.token) {
+          try {
+            execSync(`gh secret set GH_AW_AGENT_TOKEN --body "${tokenInput.token}" --repo ${gitHubInfo.owner}/${gitHubInfo.repo}`, { stdio: 'pipe' });
+            log.success('Secret GH_AW_AGENT_TOKEN added successfully!');
+          } catch (e) {
+            log.error('Failed to add secret. Please add it manually.');
+            console.log(chalk.gray(`   https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`));
+          }
+        }
+      } else {
+        const secretsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/secrets/actions/new`;
+        if (!openUrl(secretsUrl)) {
+          console.log(chalk.gray(`\n   Open: ${secretsUrl}`));
+        }
+        
+        await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'continue',
+            message: 'Press Enter when you\'ve added the secret...',
+            default: true,
+          },
+        ]);
+      }
+    } else {
+      log.warning('Skipped PAT setup - Copilot auto-assignment will not work');
+    }
   }
 
   log.divider();
