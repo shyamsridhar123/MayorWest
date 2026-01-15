@@ -178,18 +178,9 @@ function checkSecretExists(owner, repo, secretName) {
 
 function checkCopilotAgentAvailable(owner, repo) {
   try {
-    const query = `query {
-      repository(owner: "${owner}", name: "${repo}") {
-        suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
-          nodes {
-            ... on Bot {
-              login
-            }
-          }
-        }
-      }
-    }`;
-    const result = execSync(`gh api graphql -f query='${query}'`, { encoding: 'utf-8' });
+    // Use escaped quotes for cross-platform compatibility (Windows PowerShell + Unix)
+    const query = `{ repository(owner: \\"${owner}\\", name: \\"${repo}\\") { suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) { nodes { ... on Bot { login } } } } }`;
+    const result = execSync(`gh api graphql -f query="${query}"`, { encoding: 'utf-8' });
     const data = JSON.parse(result);
     const actors = data.data.repository.suggestedActors.nodes;
     return actors.some(actor => actor.login === 'copilot-swe-agent');
