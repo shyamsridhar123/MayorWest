@@ -165,7 +165,7 @@ function ensureDirectory(dir) {
 // ============================================================================
 
 const fileTemplates = {
-  '.vscode/settings.json': () => JSON.stringify({
+  '.vscode/settings.json': (options = {}) => JSON.stringify({
     'chat.tools.autoApprove': true,
     'chat.tools.terminal.autoApprove': {
       '/^git\\s+(commit|push)\\b/': true,
@@ -181,7 +181,7 @@ const fileTemplates = {
     'chat.agent.slowMode': false,
   }, null, 2),
 
-  '.github/agents/mayor-west-mode.md': () => `# Mayor West Mode - Copilot Agent Protocol
+  '.github/agents/mayor-west-mode.md': (options = {}) => `# Mayor West Mode - Copilot Agent Protocol
 
 You are operating in **Mayor West Mode**: eccentric, confident, autonomous.
 
@@ -280,7 +280,7 @@ You have successfully completed a task when:
 **Remember**: Mayor West doesn't ask for permission. He executes with confidence.
 `,
 
-  '.github/workflows/mayor-west-auto-merge.yml': () => `name: Mayor West Auto-Merge
+  '.github/workflows/mayor-west-auto-merge.yml': (options = {}) => `name: Mayor West Auto-Merge
 
 on:
   pull_request:
@@ -330,7 +330,7 @@ jobs:
             }
 `,
 
-  '.github/workflows/mayor-west-orchestrator.yml': () => `name: Mayor West Orchestrator
+  '.github/workflows/mayor-west-orchestrator.yml': (options = {}) => `name: Mayor West Orchestrator
 
 on:
   workflow_dispatch:
@@ -395,7 +395,7 @@ jobs:
             console.log(\`Triggered Copilot on issue #\${taskNumber} via @copilot mention\`);
 `,
 
-  '.github/ISSUE_TEMPLATE/mayor-task.md': () => `---
+  '.github/ISSUE_TEMPLATE/mayor-task.md': (options = {}) => `---
 name: Mayor Task
 about: Create a task for autonomous execution
 labels: mayor-task
@@ -499,7 +499,7 @@ Task is complete when:
 `;
   },
 
-  '.github/mayor-west.yml': () => `# Mayor West Mode - Security Configuration
+  '.github/mayor-west.yml': (options = {}) => `# Mayor West Mode - Security Configuration
 # This file controls security layers for autonomous operations
 
 # Layer 3: Kill Switch
@@ -530,7 +530,7 @@ audit:
 `,
 
   // Copilot Integration Files
-  '.github/copilot/instructions.md': () => `# Copilot SWE Agent Instructions
+  '.github/copilot/instructions.md': (options = {}) => `# Copilot SWE Agent Instructions
 
 > **MANDATORY**: Read and follow these instructions for ALL tasks in this repository.
 
@@ -666,7 +666,7 @@ npm run lint          # Lint code
   },
 
   // Versioning Files
-  '.versionrc.json': () => JSON.stringify({
+  '.versionrc.json': (options = {}) => JSON.stringify({
     "types": [
       {"type": "feat", "section": "Features"},
       {"type": "fix", "section": "Bug Fixes"},
@@ -683,7 +683,7 @@ npm run lint          # Lint code
     }
   }, null, 2),
 
-  'CHANGELOG.md': () => `# Changelog
+  'CHANGELOG.md': (options = {}) => `# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -700,7 +700,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Security layers (CODEOWNERS, protected paths, kill switch)
 `,
 
-  '.github/workflows/release.yml': () => `name: Release
+  '.github/workflows/release.yml': (options = {}) => `name: Release
 
 on:
   push:
@@ -858,13 +858,19 @@ async function runSetupFlow() {
   // Step 4: Create files
   log.header('📁 Step 1: Creating Configuration Files');
 
+  // Prepare template options with owner info
+  const templateOptions = {
+    owner: gitHubInfo.owner,
+    repo: gitHubInfo.repo,
+  };
+
   const spinner = ora('Creating files...').start();
   let created = 0;
 
   for (const [filePath, config] of Object.entries(filesToCreate)) {
     try {
       ensureDirectory(filePath);
-      const content = fileTemplates[filePath]();
+      const content = fileTemplates[filePath](templateOptions);
       fs.writeFileSync(filePath, content, 'utf-8');
       created++;
       spinner.succeed(`✓ ${chalk.green(config.displayName)}`);
