@@ -1,16 +1,19 @@
 name: Mayor West Orchestrator
 # Autonomous task assignment and PR merge workflow
-# Runs every 5 minutes to:
-# 1. Find unassigned mayor-task issues and assign to Copilot
-# 2. Find Copilot PRs, mark ready, approve, and merge
+# Triggers:
+# - Immediately when mayor-task issue is created/labeled
+# - When PR is closed (to pick up next task)
+# - Every 5 minutes as backup
 
 on:
   workflow_dispatch:
+  issues:
+    types: [opened, labeled]
   pull_request:
     types: [closed]
     paths: []
   schedule:
-    - cron: '*/5 * * * *'  # Every 5 minutes
+    - cron: '*/5 * * * *'  # Backup polling
 
 permissions:
   contents: write
