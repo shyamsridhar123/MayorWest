@@ -31,6 +31,7 @@ const MAYOR_WEST_CONFIG = {
 };
 
 const FILES_TO_CREATE = {
+  // Core Configuration
   '.vscode/settings.json': {
     displayName: 'VS Code YOLO Settings',
     category: 'configuration',
@@ -54,6 +55,49 @@ const FILES_TO_CREATE = {
   '.github/ISSUE_TEMPLATE/mayor-task.md': {
     displayName: 'Task Template',
     category: 'template',
+    critical: false,
+  },
+  // Security Layer Files
+  '.github/CODEOWNERS': {
+    displayName: 'CODEOWNERS (Actor Allowlist)',
+    category: 'security',
+    critical: true,
+  },
+  '.github/mayor-west.yml': {
+    displayName: 'Security Config (Protected Paths)',
+    category: 'security',
+    critical: true,
+  },
+  // Copilot Integration
+  '.github/copilot/instructions.md': {
+    displayName: 'Copilot SWE Agent Instructions',
+    category: 'copilot',
+    critical: true,
+  },
+  '.github/copilot-instructions.md': {
+    displayName: 'Project Copilot Instructions',
+    category: 'copilot',
+    critical: true,
+  },
+  'AGENTS.md': {
+    displayName: 'Root Agent File',
+    category: 'copilot',
+    critical: true,
+  },
+  // Versioning
+  '.versionrc.json': {
+    displayName: 'Semantic Version Config',
+    category: 'versioning',
+    critical: false,
+  },
+  'CHANGELOG.md': {
+    displayName: 'Changelog',
+    category: 'versioning',
+    critical: false,
+  },
+  '.github/workflows/release.yml': {
+    displayName: 'Release Workflow',
+    category: 'versioning',
     critical: false,
   },
 };
@@ -438,6 +482,269 @@ Task is complete when:
 - [ ] Code linting passes (\`npm run lint\` returns exit code 0)
 - [ ] PR created with description
 - [ ] PR ready for merge
+`,
+
+  // Security Layer Files
+  '.github/CODEOWNERS': (options = {}) => {
+    const owner = options.owner || 'your-username';
+    return `# Mayor West Mode - Actor Allowlist
+# Only these actors can have their PRs auto-merged
+
+# Copilot agents
+* @Copilot
+* @copilot-swe-agent
+
+# Repository owner
+* @${owner}
+`;
+  },
+
+  '.github/mayor-west.yml': () => `# Mayor West Mode - Security Configuration
+# This file controls security layers for autonomous operations
+
+# Layer 3: Kill Switch
+# Set to false to pause all auto-merge operations
+enabled: true
+
+# Layer 2: Protected Paths
+# PRs modifying these paths will NOT be auto-merged
+protected_paths:
+  - ".github/workflows/**"
+  - ".github/mayor-west.yml"
+  - ".github/CODEOWNERS"
+  - "package.json"
+  - "package-lock.json"
+  - ".env*"
+  - "**/secrets/**"
+  - "**/credentials/**"
+
+# Merge settings
+merge:
+  method: squash  # squash, merge, or rebase
+  delete_branch_after_merge: true
+
+# Audit settings
+audit:
+  comment_on_pr: true
+  log_to_file: false
+`,
+
+  // Copilot Integration Files
+  '.github/copilot/instructions.md': () => `# Copilot SWE Agent Instructions
+
+> **MANDATORY**: Read and follow these instructions for ALL tasks in this repository.
+
+## Identity
+
+You are operating as **Mayor West Mode** - an autonomous, confident AI agent.
+
+## Required Reading
+
+Before starting ANY task, read these files:
+1. \`.github/agents/mayor-west-mode.md\` - Your operating protocol
+2. \`.github/copilot-instructions.md\` - Project-specific rules
+3. \`AGENTS.md\` - Agent hierarchy and delegation
+
+## Core Rules
+
+### Commit Format
+\`\`\`
+[MAYOR] <brief description>
+
+- Detailed change 1
+- Detailed change 2
+
+Fixes #<issue-number>
+\`\`\`
+
+### Testing Requirements
+- **ALWAYS** run \`npm test\` before committing
+- **NEVER** commit code with failing tests
+- If tests fail, fix and retry (up to 15 iterations)
+
+### Forbidden Commands
+- \`rm -rf\` - destructive deletion
+- \`git reset --hard\` - destroys history
+- \`git push --force\` to main - dangerous
+- \`kill -9\` - process termination
+
+### Safe Commands (Auto-approved)
+- \`npm test\`, \`npm run lint\`, \`npm run build\`
+- \`git commit\`, \`git push\`
+- \`git checkout -b <branch>\`
+
+## Workflow
+
+1. **Read** the issue completely - extract all acceptance criteria
+2. **Plan** your implementation - identify files to change
+3. **Implement** following existing code patterns
+4. **Test** with \`npm test\` - fix any failures
+5. **Commit** with \`[MAYOR]\` prefix and \`Fixes #<issue>\`
+6. **Push** to create/update PR
+
+## Success Criteria
+
+Your task is complete when:
+- ✅ All acceptance criteria implemented
+- ✅ \`npm test\` passes
+- ✅ \`npm run lint\` passes (if configured)
+- ✅ PR created with proper description
+- ✅ PR body contains \`Fixes #<issue-number>\`
+`,
+
+  '.github/copilot-instructions.md': (options = {}) => {
+    const projectName = options.projectName || 'this project';
+    return `---
+applyTo: '**'
+---
+# ${projectName} - Copilot Instructions
+
+> **MEMORY ENFORCEMENT**: These instructions MUST be loaded and followed for ALL interactions with this codebase.
+
+## Project Overview
+
+This project uses **Mayor West Mode** for autonomous GitHub Copilot development workflows.
+
+## Key Rules
+
+1. **Commit Format**: \`[MAYOR] <description>\`
+2. **Test Before Commit**: Always run \`npm test\` before committing
+3. **No Destructive Commands**: Never use \`rm -rf\`, \`git reset --hard\`, etc.
+4. **PR Format**: Include \`Fixes #<issue-number>\` in PR body
+
+## Agent Hierarchy
+
+Consult the appropriate agent file for specialized tasks:
+- \`.github/agents/mayor-west-mode.md\` - Primary agent protocol
+- \`AGENTS.md\` - Agent overview and delegation
+
+## Quick Reference
+
+\`\`\`bash
+# Development
+npm install
+npm test
+npm run lint
+
+# Create a task
+# GitHub → Issues → New → Mayor Task template
+\`\`\`
+`;
+  },
+
+  'AGENTS.md': (options = {}) => {
+    const projectName = options.projectName || 'Project';
+    return `# ${projectName} - Agent Instructions
+
+> **MANDATORY ENFORCEMENT**: This file is automatically loaded for ALL AI interactions in this workspace.
+
+## Project Identity
+
+This project uses **Mayor West Mode** - autonomous GitHub Copilot development workflows.
+
+## Agent Hierarchy
+
+| Pattern | Agent | Location |
+|---------|-------|----------|
+| \`**\` | Mayor West Mode | \`.github/agents/mayor-west-mode.md\` |
+
+## Mandatory Rules
+
+1. **Never auto-approve destructive commands**: \`rm\`, \`kill\`, \`reset --hard\`
+2. **Always run tests before committing**
+3. **Use commit format**: \`[MAYOR] <description>\`
+4. **Include \`Fixes #<issue>\` in PR body**
+
+## Development Commands
+
+\`\`\`bash
+npm install           # Install dependencies
+npm test              # Run tests
+npm run lint          # Lint code
+\`\`\`
+`;
+  },
+
+  // Versioning Files
+  '.versionrc.json': () => JSON.stringify({
+    "types": [
+      {"type": "feat", "section": "Features"},
+      {"type": "fix", "section": "Bug Fixes"},
+      {"type": "perf", "section": "Performance"},
+      {"type": "refactor", "section": "Refactoring"},
+      {"type": "docs", "section": "Documentation"},
+      {"type": "test", "section": "Tests"},
+      {"type": "ci", "section": "CI/CD"},
+      {"type": "chore", "hidden": true}
+    ],
+    "releaseCommitMessageFormat": "chore(release): {{currentTag}}",
+    "scripts": {
+      "postchangelog": "prettier --write CHANGELOG.md || true"
+    }
+  }, null, 2),
+
+  'CHANGELOG.md': () => `# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Initial Mayor West Mode setup
+- Autonomous GitHub Copilot workflows
+- Auto-merge workflow
+- Orchestrator workflow
+- Security layers (CODEOWNERS, protected paths, kill switch)
+`,
+
+  '.github/workflows/release.yml': () => `name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION=\${GITHUB_REF#refs/tags/v}
+          echo "version=\$VERSION" >> \$GITHUB_OUTPUT
+          sed -n "/## \\[\$VERSION\\]/,/## \\[/p" CHANGELOG.md | sed '\$d' > release-notes.md || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v\${{ steps.changelog.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: \${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
 `,
 };
 
