@@ -1,4 +1,8 @@
 name: Mayor West Orchestrator
+# Autonomous task assignment and PR merge workflow
+# Runs every 5 minutes to:
+# 1. Find unassigned mayor-task issues and assign to Copilot
+# 2. Find Copilot PRs, mark ready, approve, and merge
 
 on:
   workflow_dispatch:
@@ -6,7 +10,7 @@ on:
     types: [closed]
     paths: []
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/5 * * * *'  # Every 5 minutes
 
 permissions:
   contents: write
@@ -157,10 +161,22 @@ jobs:
             for (const pr of copilotPRs) {
               console.log(`Processing PR #${pr.number}: ${pr.title}`);
               
-              // Skip draft PRs
+              // If PR is draft, mark it as ready first
               if (pr.draft) {
-                console.log(`  Skipping: PR is still a draft`);
-                continue;
+                console.log(`  PR is a draft, marking as ready...`);
+                try {
+                  await github.graphql(`
+                    mutation($prId: ID!) {
+                      markPullRequestReadyForReview(input: { pullRequestId: $prId }) {
+                        pullRequest { isDraft }
+                      }
+                    }
+                  `, { prId: pr.node_id });
+                  console.log(`  ✅ Marked as ready for review`);
+                } catch (error) {
+                  console.log(`  ⚠️ Could not mark ready: ${error.message}`);
+                  continue;
+                }
               }
               
               // Check if PR is mergeable
@@ -178,6 +194,20 @@ jobs:
               if (prDetails.mergeable_state === 'blocked') {
                 console.log(`  Skipping: PR is blocked (status checks pending)`);
                 continue;
+              }
+              
+              // Approve the PR first
+              try {
+                await github.rest.pulls.createReview({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  event: 'APPROVE',
+                  body: '✅ Auto-approved by Mayor West Orchestrator'
+                });
+                console.log(`  ✅ Approved PR #${pr.number}`);
+              } catch (error) {
+                console.log(`  ⚠️ Could not approve: ${error.message}`);
               }
               
               // Merge the PR
