@@ -482,7 +482,7 @@ jobs:
       - name: Check for Audit Findings
         id: check_findings
         run: |
-          if [ -d ".mayor-west-audit" ] && [ "\$(ls -A .mayor-west-audit)" ]; then
+          if [ -d ".mayor-west-audit" ] && [ "$(ls -A .mayor-west-audit)" ]; then
             echo "findings=true" >> \$GITHUB_OUTPUT
             echo "Found audit issues"
           else
@@ -915,7 +915,8 @@ async function runAuditFlow() {
   spinner.text = 'Checking package.json configuration...';
   if (fs.existsSync('package.json')) {
     const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
-    const requiredScripts = ['test', 'lint', 'build'];
+    // Only check for test and lint - build is optional for CLI tools
+    const requiredScripts = ['test', 'lint'];
     const missingScripts = requiredScripts.filter(script => !packageJson.scripts || !packageJson.scripts[script]);
     
     if (missingScripts.length > 0) {
