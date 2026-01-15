@@ -153,6 +153,7 @@ See [testing-guide.md](Docs/testing-guide.md) for detailed testing information.
 **What's in progress:**
 - ⚠️ Complex multi-file refactors may need task splitting
 - ⚠️ Cross-repository dependencies not supported
+- ⚠️ PR auto-approval not supported (GitHub limitation)
 
 ---
 
