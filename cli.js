@@ -798,7 +798,6 @@ async function runSetupFlow() {
   }
 
   log.success(`GitHub repository: ${gitHubInfo.owner}/${gitHubInfo.repo}`);
-  log.divider();
 
   // Check for gh CLI
   let ghCliAvailable = false;
@@ -809,6 +808,26 @@ async function runSetupFlow() {
   } catch (e) {
     log.warning('GitHub CLI not authenticated (some features require manual setup)');
   }
+
+  // Check if repo is private and inform user
+  let isPrivateRepo = false;
+  if (ghCliAvailable) {
+    try {
+      const isPrivate = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} --jq ".private"`, {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      }).trim();
+      isPrivateRepo = isPrivate === 'true';
+      if (isPrivateRepo) {
+        log.info('Private repository detected');
+        console.log(chalk.gray('   └─ GitHub Actions minutes apply (2,000 free/month)'));
+      }
+    } catch (e) {
+      // Ignore - repo check failed
+    }
+  }
+
+  log.divider();
 
   // Step 3: Prompt for configuration
   const answers = await inquirer.prompt([
@@ -1214,6 +1233,10 @@ async function runVerifyFlow() {
     category: 'core',
   });
 
+  // Check repo visibility for context
+  const gitHubInfo = remoteUrl ? parseGitHubUrl(remoteUrl) : null;
+  let isPrivateRepo = false;
+
   // Check core files
   const coreFiles = [
     { path: '.vscode/settings.json', name: 'VS Code YOLO Settings' },
@@ -1322,10 +1345,19 @@ async function runVerifyFlow() {
     ghCliAvailable = true;
   } catch (e) {}
 
-  if (ghCliAvailable && remoteUrl) {
+  if (ghCliAvailable && remoteUrl && gitHubInfo) {
+    // Check repo visibility
+    try {
+      const visibility = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} --jq ".private"`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      }).trim();
+      isPrivateRepo = visibility === 'true';
+    } catch (e) {}
+
     try {
       // Check auto-merge setting
-      const repoInfo = execSync('gh api repos/{owner}/{repo} --jq ".allow_auto_merge"', { 
+      const repoInfo = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} --jq ".allow_auto_merge"`, { 
         encoding: 'utf8', 
         stdio: ['pipe', 'pipe', 'pipe'] 
       }).trim();
@@ -1340,7 +1372,7 @@ async function runVerifyFlow() {
 
     try {
       // Check delete branch on merge
-      const deleteBranch = execSync('gh api repos/{owner}/{repo} --jq ".delete_branch_on_merge"', { 
+      const deleteBranch = execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo} --jq ".delete_branch_on_merge"`, { 
         encoding: 'utf8', 
         stdio: ['pipe', 'pipe', 'pipe'] 
       }).trim();
@@ -1476,8 +1508,16 @@ async function runVerifyFlow() {
     });
   }
 
-  // ── Display Results ──
   log.divider();
+  
+  // Show repo info
+  if (gitHubInfo) {
+    console.log(chalk.cyan(`\n📍 Repository: ${gitHubInfo.owner}/${gitHubInfo.repo}`));
+    if (isPrivateRepo) {
+      console.log(chalk.gray('   └─ Private repo (GitHub Actions minutes apply: 2,000 free/month)'));
+    }
+  }
+
   console.log(chalk.cyan.bold('\n📊 Results\n'));
 
   const categories = ['core', 'security', 'copilot', 'versioning', 'github'];
