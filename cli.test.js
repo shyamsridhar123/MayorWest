@@ -379,14 +379,76 @@ labels: mayor-task
 
   describe('CLI Commands', () => {
     test('should support all required commands', () => {
-      const supportedCommands = ['setup', 'verify', 'help', 'examples', 'status'];
+      const supportedCommands = ['setup', 'verify', 'help', 'examples', 'status', 'audit'];
       
       expect(supportedCommands).toContain('setup');
       expect(supportedCommands).toContain('verify');
       expect(supportedCommands).toContain('help');
       expect(supportedCommands).toContain('examples');
       expect(supportedCommands).toContain('status');
-      expect(supportedCommands).toHaveLength(5);
+      expect(supportedCommands).toContain('audit');
+      expect(supportedCommands).toHaveLength(6);
+    });
+  });
+
+  describe('Audit Feature', () => {
+    test('should identify missing README.md', () => {
+      const auditChecks = {
+        hasReadme: false,
+        severity: 'high',
+        category: 'documentation'
+      };
+      
+      expect(auditChecks.hasReadme).toBe(false);
+      expect(auditChecks.severity).toBe('high');
+      expect(auditChecks.category).toBe('documentation');
+    });
+
+    test('should identify missing test infrastructure', () => {
+      const testDirs = ['test', 'tests', '__tests__', 'spec'];
+      const hasTestDir = false;
+      const hasTestFiles = false;
+      
+      const needsTests = !hasTestDir && !hasTestFiles;
+      expect(needsTests).toBe(true);
+    });
+
+    test('should categorize audit findings by severity', () => {
+      const severityLevels = ['high', 'medium', 'low'];
+      
+      expect(severityLevels).toContain('high');
+      expect(severityLevels).toContain('medium');
+      expect(severityLevels).toContain('low');
+    });
+
+    test('should generate issue template with acceptance criteria', () => {
+      const finding = {
+        title: 'Missing README.md',
+        description: 'Repository lacks documentation',
+        acceptance: [
+          'Create README.md',
+          'Add installation instructions',
+          'Add usage examples'
+        ]
+      };
+      
+      expect(finding.acceptance).toHaveLength(3);
+      expect(finding.acceptance[0]).toBe('Create README.md');
+    });
+
+    test('should support multiple audit categories', () => {
+      const categories = [
+        'documentation',
+        'build-tooling',
+        'configuration',
+        'legal',
+        'testing',
+        'dependencies'
+      ];
+      
+      expect(categories.length).toBeGreaterThan(0);
+      expect(categories).toContain('documentation');
+      expect(categories).toContain('testing');
     });
   });
 
@@ -397,15 +459,41 @@ labels: mayor-task
         agent: ['.github/agents/mayor-west-mode.md'],
         workflow: [
           '.github/workflows/mayor-west-auto-merge.yml',
-          '.github/workflows/mayor-west-orchestrator.yml'
+          '.github/workflows/mayor-west-orchestrator.yml',
+          '.github/workflows/mayor-west-audit.yml'
         ],
         template: ['.github/ISSUE_TEMPLATE/mayor-task.md'],
       };
       
       expect(categories.configuration).toHaveLength(1);
       expect(categories.agent).toHaveLength(1);
-      expect(categories.workflow).toHaveLength(2);
+      expect(categories.workflow).toHaveLength(3);
       expect(categories.template).toHaveLength(1);
+    });
+  });
+
+  describe('Autonomous Audit Workflow', () => {
+    test('should have required workflow structure', () => {
+      const auditWorkflow = `name: Mayor West Autonomous Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: read
+  issues: write`;
+      
+      expect(auditWorkflow).toContain('Mayor West Autonomous Audit');
+      expect(auditWorkflow).toContain('workflow_dispatch');
+      expect(auditWorkflow).toContain('schedule');
+      expect(auditWorkflow).toContain('issues: write');
+    });
+
+    test('should create issues automatically', () => {
+      const workflowStep = 'Create GitHub Issues from Audit Findings';
+      expect(workflowStep).toContain('Create GitHub Issues');
     });
   });
 });

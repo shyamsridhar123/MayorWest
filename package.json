@@ -17,6 +17,7 @@
     "help": "node cli.js help",
     "examples": "node cli.js examples",
     "status": "node cli.js status",
+    "audit": "node cli.js audit",
     "dev": "node cli.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",

@@ -37,3 +37,6 @@ Thumbs.db
 
 # Test
 *.lcov
+
+# Mayor West Mode audit artifacts
+.mayor-west-audit/
