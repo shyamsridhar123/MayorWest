@@ -89,14 +89,91 @@ your-repo/
 
 ---
 
-## Safety Guardrails
+## 🛡️ Security-First Autonomous Coding
+
+> **Full autonomy doesn't mean zero safety.** Mayor West Mode implements a **4-layer security architecture** that protects your codebase while enabling true autonomous workflows.
+
+### Why This Matters
+
+Most AI coding tools today (Cline, Aider, Roo Code, Cursor) use a **human-in-the-loop** model—you approve every file change and terminal command. That's safe, but it's not autonomous.
+
+Mayor West Mode takes a different approach: **Security by Architecture**, not by interruption.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│         Mayor West Mode: 4-Layer Security Architecture          │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 1: Command Blocking                                      │
+│  ├── ✅ Auto-approve: git commit, git push, npm test, npm build │
+│  └── ❌ Blocked: rm, rm -rf, kill, git reset --hard, git push -f│
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 2: Protected Paths                                       │
+│  ├── 🔒 .github/workflows/** → Human review required            │
+│  ├── 🔒 package.json, *.lock → Human review required            │
+│  └── ✅ src/**/*.ts → Auto-merge allowed                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 3: Kill Switch                                           │
+│  ├── npx mayor-west-mode pause  → Disable all auto-merge       │
+│  └── npx mayor-west-mode resume → Re-enable auto-merge         │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 4: Audit Trail                                           │
+│  ├── PR comments with merge timestamp and changed files         │
+│  └── Full GitHub Actions logs for every operation               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Security Comparison
+
+| Capability | Cline/Aider/Roo | Mayor West |
+|------------|-----------------|------------|
+| **Autonomy Level** | Human approves every action | Full autonomous execution |
+| **Protected Paths** | ❌ Not available | ✅ Glob patterns for critical files |
+| **Auto-merge PRs** | ❌ Manual merge only | ✅ Safe PRs auto-merge |
+| **Kill Switch** | ❌ Close the app | ✅ CLI pause/resume commands |
+| **Audit Comments** | ❌ No built-in audit | ✅ Every merge documented |
+| **Blocked Commands** | ⚠️ Requires manual deny | ✅ Regex whitelist/blacklist |
+| **CI/CD Integration** | ❌ Local only | ✅ GitHub Actions orchestration |
+
+### Protected Paths
+
+Configure which files require human review in `.github/mayor-west.yml`:
+
+```yaml
+protected_paths:
+  - ".github/workflows/**"    # Workflow changes need review
+  - "package.json"            # Dependency changes need review
+  - "**/.env*"                # Environment files need review
+  - "**/secrets/**"           # Secret directories need review
+```
+
+When Copilot touches a protected path, the PR is flagged for human review instead of auto-merging.
+
+### Quick Controls
+
+```bash
+# Pause all autonomous operations
+npx mayor-west-mode pause
+
+# Resume autonomous operations  
+npx mayor-west-mode resume
+
+# Check current security status
+npx mayor-west-mode status
+```
+
+---
+
+## Safety Guardrails Summary
 
 | Protection | How It Works |
 |------------|--------------|
-| **YOLO Whitelist** | Only safe commands auto-approved |
-| **Blocked Commands** | `rm`, `kill`, `git push --force` require approval |
+| **Command Whitelist** | Only safe commands auto-approved (git commit, npm test, etc.) |
+| **Blocked Commands** | `rm`, `kill`, `git reset --hard`, `git push --force` require approval |
+| **Protected Paths** | Critical files (workflows, package.json) require human review |
 | **Iteration Limit** | Stops after 15 iterations (configurable) |
-| **Branch Protection** | GitHub enforces status checks |
+| **Kill Switch** | Instantly pause/resume with CLI commands |
+| **Audit Trail** | Every auto-merge documented with PR comment |
+| **Branch Protection** | GitHub enforces status checks before merge |
 | **Test-First** | Won't commit if tests fail |
 
 ---
