@@ -1,0 +1,47 @@
+# Mayor West Mode Security Configuration
+# This file controls autonomous merge behavior for Copilot PRs
+
+# Enable/disable Mayor West Mode (set to false to pause all auto-merges)
+enabled: true
+
+# Protected paths - PRs touching these files require human review
+# Uses glob patterns matching file paths in the PR
+protected_paths:
+  # Critical infrastructure
+  - ".github/workflows/**"        # Workflow modifications need human review
+  - ".github/mayor-west.yml"      # This config file itself
+  
+  # Package management
+  - "package.json"                # Dependency changes
+  - "package-lock.json"           # Lock file changes
+  - "yarn.lock"                   # Yarn lock file
+  - "pnpm-lock.yaml"              # pnpm lock file
+  
+  # Secrets and environment
+  - "**/.env*"                    # Environment files
+  - "**/secrets/**"               # Any secrets directory
+  - "**/*.pem"                    # Certificates
+  - "**/*.key"                    # Private keys
+
+# Settings for auto-merge behavior
+settings:
+  # Merge method: squash, merge, or rebase
+  merge_method: squash
+  
+  # Delete branch after merge
+  delete_branch: true
+  
+  # Require all status checks to pass
+  require_status_checks: true
+  
+  # Add audit comment to merged PRs
+  audit_comments: true
+
+# Audit log settings
+audit:
+  # Log all Copilot merge events to a file
+  log_to_file: false
+  log_path: ".github/mayor-west-audit.log"
+  
+  # Add comment to PR with merge details
+  comment_on_merge: true
