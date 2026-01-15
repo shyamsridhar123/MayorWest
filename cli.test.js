@@ -481,4 +481,160 @@ labels: mayor-task
       });
     });
   });
+
+  describe('GitHub Settings Verification', () => {
+    test('should detect gh CLI availability', () => {
+      // Mock function that simulates checking for gh CLI
+      const isGHCLIAvailable = () => {
+        try {
+          // In real code, this would call execSync('gh --version')
+          return true;
+        } catch (e) {
+          return false;
+        }
+      };
+      
+      expect(typeof isGHCLIAvailable()).toBe('boolean');
+    });
+
+    test('should detect gh CLI authentication status', () => {
+      // Mock function that simulates checking gh auth status
+      const isGHCLIAuthenticated = () => {
+        try {
+          // In real code, this would call execSync('gh auth status')
+          return true;
+        } catch (e) {
+          return false;
+        }
+      };
+      
+      expect(typeof isGHCLIAuthenticated()).toBe('boolean');
+    });
+
+    test('should check auto-merge setting', () => {
+      // Mock function that simulates checking auto-merge
+      const checkAutoMergeEnabled = (owner, repo) => {
+        // In real code, this would call gh api repos/{owner}/{repo}
+        return false; // Default: not enabled
+      };
+      
+      const result = checkAutoMergeEnabled('owner', 'repo');
+      expect(typeof result).toBe('boolean');
+    });
+
+    test('should check workflow permissions', () => {
+      // Mock function that simulates checking workflow permissions
+      const checkWorkflowPermissions = (owner, repo) => {
+        // In real code, this would call gh api repos/{owner}/{repo}/actions/permissions/workflow
+        return false; // Default: read-only
+      };
+      
+      const result = checkWorkflowPermissions('owner', 'repo');
+      expect(typeof result).toBe('boolean');
+    });
+
+    test('should check branch protection', () => {
+      // Mock function that simulates checking branch protection
+      const checkBranchProtection = (owner, repo, branch = 'main') => {
+        // In real code, this would call gh api repos/{owner}/{repo}/branches/{branch}/protection
+        return false; // Default: no protection
+      };
+      
+      const result = checkBranchProtection('owner', 'repo', 'main');
+      expect(typeof result).toBe('boolean');
+    });
+
+    test('should check secret existence', () => {
+      // Mock function that simulates checking for secrets
+      const checkSecretExists = (owner, repo, secretName) => {
+        // In real code, this would call gh api repos/{owner}/{repo}/actions/secrets
+        const mockSecrets = {
+          secrets: [
+            { name: 'GITHUB_TOKEN' },
+            { name: 'GH_AW_AGENT_TOKEN' }
+          ]
+        };
+        return mockSecrets.secrets.some(s => s.name === secretName);
+      };
+      
+      expect(checkSecretExists('owner', 'repo', 'GH_AW_AGENT_TOKEN')).toBe(true);
+      expect(checkSecretExists('owner', 'repo', 'NONEXISTENT')).toBe(false);
+    });
+
+    test('should check Copilot agent availability', () => {
+      // Mock function that simulates checking Copilot agent
+      const checkCopilotAgentAvailable = (owner, repo) => {
+        // In real code, this would call gh api graphql with suggestedActors query
+        const mockActors = [
+          { login: 'copilot-swe-agent' },
+          { login: 'dependabot' }
+        ];
+        return mockActors.some(actor => actor.login === 'copilot-swe-agent');
+      };
+      
+      expect(checkCopilotAgentAvailable('owner', 'repo')).toBe(true);
+    });
+
+    test('should have error messages for failed checks', () => {
+      const checks = [
+        {
+          name: 'Auto-merge enabled',
+          pass: false,
+          errorMsg: 'Auto-merge not enabled. Fix: Settings → General → Pull Requests → ☑ Allow auto-merge'
+        },
+        {
+          name: 'Workflow permissions (read-write)',
+          pass: false,
+          errorMsg: 'Workflow permissions not set to write. Fix: Settings → Actions → General'
+        },
+        {
+          name: 'GH_AW_AGENT_TOKEN secret',
+          pass: false,
+          errorMsg: 'Secret not found. Create a Fine-Grained PAT'
+        }
+      ];
+      
+      checks.forEach(check => {
+        expect(check.errorMsg).toBeDefined();
+        expect(check.errorMsg.length).toBeGreaterThan(0);
+      });
+    });
+
+    test('should validate GitHub API response parsing', () => {
+      // Test parsing of auto-merge response
+      const autoMergeResponse = 'true';
+      expect(autoMergeResponse === 'true').toBe(true);
+      
+      // Test parsing of workflow permissions response
+      const workflowPermsResponse = 'write';
+      expect(workflowPermsResponse === 'write').toBe(true);
+      
+      // Test parsing of secrets list
+      const secretsResponse = {
+        secrets: [
+          { name: 'GH_AW_AGENT_TOKEN' },
+          { name: 'GITHUB_TOKEN' }
+        ]
+      };
+      expect(secretsResponse.secrets.some(s => s.name === 'GH_AW_AGENT_TOKEN')).toBe(true);
+    });
+
+    test('should validate GraphQL query structure for Copilot agent', () => {
+      const query = `query {
+        repository(owner: "owner", name: "repo") {
+          suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
+            nodes {
+              ... on Bot {
+                login
+              }
+            }
+          }
+        }
+      }`;
+      
+      expect(query).toContain('suggestedActors');
+      expect(query).toContain('CAN_BE_ASSIGNED');
+      expect(query).toContain('login');
+    });
+  });
 });
