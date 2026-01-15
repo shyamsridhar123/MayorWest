@@ -15,6 +15,55 @@
 
 ---
 
+## 🛡️ Security-First Autonomous Coding
+
+> **The key differentiator**: Full autonomy doesn't mean zero safety. Mayor West Mode is the **first AI coding tool with security by architecture**, not by interruption.
+
+### Why This Matters
+
+Most AI coding tools today (Cline, Aider, Roo Code, Cursor) use a **human-in-the-loop** model—you approve every file change and terminal command. That's safe, but it's not autonomous.
+
+Mayor West Mode takes a different approach: **configure once, trust the guardrails**.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│         Mayor West Mode: 4-Layer Security Architecture          │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 1: Command Blocking                                      │
+│  ├── ✅ Auto-approve: git commit, git push, npm test, npm build │
+│  └── ❌ Blocked: rm, rm -rf, kill, git reset --hard, git push -f│
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 2: Protected Paths                                       │
+│  ├── 🔒 .github/workflows/** → Human review required            │
+│  ├── 🔒 package.json, *.lock → Human review required            │
+│  └── ✅ src/**/*.ts → Auto-merge allowed                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 3: Kill Switch                                           │
+│  ├── npx mayor-west-mode pause  → Disable all auto-merge        │
+│  └── npx mayor-west-mode resume → Re-enable auto-merge          │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 4: Audit Trail                                           │
+│  ├── PR comments with merge timestamp and changed files         │
+│  └── Full GitHub Actions logs for every operation               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### How We Compare
+
+| Capability | Cline/Aider/Roo | Mayor West |
+|------------|-----------------|------------|
+| **Autonomy Level** | Human approves every action | Full autonomous execution |
+| **Protected Paths** | ❌ Not available | ✅ Glob patterns for critical files |
+| **Auto-merge PRs** | ❌ Manual merge only | ✅ Safe PRs auto-merge |
+| **Kill Switch** | ❌ Close the app | ✅ CLI pause/resume commands |
+| **Audit Trail** | ❌ No built-in audit | ✅ Every merge documented |
+| **Blocked Commands** | ⚠️ Requires manual deny | ✅ Regex whitelist/blacklist |
+| **CI/CD Integration** | ❌ Local only | ✅ GitHub Actions orchestration |
+
+📖 [See full security architecture](#safety-guardrails-summary)
+
+---
+
 ## What is Mayor West Mode?
 
 Mayor West Mode is an experiment in autonomous development workflows. It configures GitHub Copilot to pick up tasks from GitHub Issues and attempt to implement, test, and merge them with minimal human intervention.
@@ -85,80 +134,6 @@ your-repo/
 │   │   ├── mayor-west-auto-merge.yml  ← Auto-approve & merge
 │   │   └── mayor-west-orchestrator.yml ← Task queue processing
 │   └── ISSUE_TEMPLATE/mayor-task.md   ← Task template
-```
-
----
-
-## 🛡️ Security-First Autonomous Coding
-
-> **Full autonomy doesn't mean zero safety.** Mayor West Mode implements a **4-layer security architecture** that protects your codebase while enabling true autonomous workflows.
-
-### Why This Matters
-
-Most AI coding tools today (Cline, Aider, Roo Code, Cursor) use a **human-in-the-loop** model—you approve every file change and terminal command. That's safe, but it's not autonomous.
-
-Mayor West Mode takes a different approach: **Security by Architecture**, not by interruption.
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│         Mayor West Mode: 4-Layer Security Architecture          │
-├─────────────────────────────────────────────────────────────────┤
-│  Layer 1: Command Blocking                                      │
-│  ├── ✅ Auto-approve: git commit, git push, npm test, npm build │
-│  └── ❌ Blocked: rm, rm -rf, kill, git reset --hard, git push -f│
-├─────────────────────────────────────────────────────────────────┤
-│  Layer 2: Protected Paths                                       │
-│  ├── 🔒 .github/workflows/** → Human review required            │
-│  ├── 🔒 package.json, *.lock → Human review required            │
-│  └── ✅ src/**/*.ts → Auto-merge allowed                        │
-├─────────────────────────────────────────────────────────────────┤
-│  Layer 3: Kill Switch                                           │
-│  ├── npx mayor-west-mode pause  → Disable all auto-merge       │
-│  └── npx mayor-west-mode resume → Re-enable auto-merge         │
-├─────────────────────────────────────────────────────────────────┤
-│  Layer 4: Audit Trail                                           │
-│  ├── PR comments with merge timestamp and changed files         │
-│  └── Full GitHub Actions logs for every operation               │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Security Comparison
-
-| Capability | Cline/Aider/Roo | Mayor West |
-|------------|-----------------|------------|
-| **Autonomy Level** | Human approves every action | Full autonomous execution |
-| **Protected Paths** | ❌ Not available | ✅ Glob patterns for critical files |
-| **Auto-merge PRs** | ❌ Manual merge only | ✅ Safe PRs auto-merge |
-| **Kill Switch** | ❌ Close the app | ✅ CLI pause/resume commands |
-| **Audit Comments** | ❌ No built-in audit | ✅ Every merge documented |
-| **Blocked Commands** | ⚠️ Requires manual deny | ✅ Regex whitelist/blacklist |
-| **CI/CD Integration** | ❌ Local only | ✅ GitHub Actions orchestration |
-
-### Protected Paths
-
-Configure which files require human review in `.github/mayor-west.yml`:
-
-```yaml
-protected_paths:
-  - ".github/workflows/**"    # Workflow changes need review
-  - "package.json"            # Dependency changes need review
-  - "**/.env*"                # Environment files need review
-  - "**/secrets/**"           # Secret directories need review
-```
-
-When Copilot touches a protected path, the PR is flagged for human review instead of auto-merging.
-
-### Quick Controls
-
-```bash
-# Pause all autonomous operations
-npx mayor-west-mode pause
-
-# Resume autonomous operations  
-npx mayor-west-mode resume
-
-# Check current security status
-npx mayor-west-mode status
 ```
 
 ---
@@ -241,37 +216,52 @@ See [testing-guide.md](Docs/testing-guide.md) for detailed testing information.
   <em>"I don't need your approval. I'm the mayor."</em>
 </p>
 
-Mayor Adam West of Quahog embodies a paradox: **absolute confidence within absurdity**. He doesn't question whether his actions make sense. He doesn't wait for approval. He simply *acts*—and somehow, against all odds, things get done.
+Mayor Adam West doesn't ask for permission. He doesn't second-guess himself. He acts with complete conviction—even when what he's doing makes no sense to anyone else. And somehow, against all odds, things get done.
 
-**Mayor West Mode applies this philosophy to autonomous development:**
+**This is the philosophy behind Mayor West Mode:**
 
-| Philosophical Concept | Mayor West Interpretation | How We Implement It |
-|-----------------------|---------------------------|---------------------|
-| **Kierkegaard's Leap of Faith** | Trust without constant verification | Configure once, then let the AI execute |
-| **Nietzsche's Apollonian/Dionysian** | Order + Chaos in harmony | Security guardrails + autonomous creativity |
-| **Heidegger's Ready-to-Hand** | Tools that disappear into use | Issues → PRs → Merges without interruption |
-| **Camus' Absurd Rebellion** | Meaning through action, not outcome | Iterate faster than entropy accumulates |
-| **Taoist Wu Wei** | Effortless action, natural flow | Orchestrator runs on schedule, not command |
+### The Problem with "Human-in-the-Loop"
 
-### The Four Pillars
+Most AI coding tools treat you like a suspicious manager:
+- *"Can I edit this file?"*
+- *"Can I run this command?"*
+- *"Can I commit this change?"*
 
-| Pillar | Meaning |
-|--------|---------|
-| 🎭 **Eccentric Autonomy** | Decides without waiting for permission |
-| 💪 **Unwavering Confidence** | Proceeds despite chaos and uncertainty |
-| 🔄 **Iterative Resilience** | Fails forward, retries without complaint |
-| 🎯 **Unconventional Effectiveness** | Gets results through unexpected means |
+Click. Click. Click. A hundred tiny interruptions, each one pulling you out of flow. You're not collaborating with the AI—you're babysitting it.
 
-### The Manifesto
+### The Alternative: Policy, Not Approval
 
-> *I am not a micromanager. I am a Mayor.*  
-> *I do not approve every action. I set policies.*  
-> *I do not watch every commit. I review outcomes.*  
-> *I do not fear the AI. I configure its boundaries.*  
-> *I am not controlling. I am trusting.*  
-> *I am not blocked. I am in flow.*
+A mayor doesn't approve every traffic light change. They set policy, hire competent people, and review outcomes. That's what Mayor West Mode does:
 
-📖 **Read the full philosophy**: [The Philosophy of Mayor West Mode](Docs/philosophy.md)
+| Instead of... | Mayor West Mode... |
+|---------------|-------------------|
+| Approving every file edit | Define which paths are protected |
+| Approving every command | Define which commands are blocked |
+| Watching every commit | Review the PR when it's ready |
+| Intervening constantly | Intervene only when needed |
+
+**Configure the guardrails once. Trust the system. Review results.**
+
+### Why This Works
+
+The secret isn't less safety—it's *better* safety:
+
+1. **Humans are bad at repetitive approval tasks.** After the 50th "approve command?" dialog, you're clicking yes without reading. Real security requires designed constraints, not vigilance.
+
+2. **Interruptions destroy deep work.** Cal Newport's research shows it takes 23 minutes to recover focus after an interruption. AI tools that interrupt every 30 seconds make productive work impossible.
+
+3. **Outcomes matter more than process.** You don't need to watch every keystroke. You need tests to pass, code to work, and PRs to be reviewable.
+
+### The Four Principles
+
+| Principle | What It Means |
+|-----------|---------------|
+| 🎭 **Autonomous Execution** | Act without waiting for permission |
+| 🔒 **Structured Boundaries** | Define what's protected, then trust the system |
+| 🔄 **Iterative Resilience** | Fail, learn, retry—automatically |
+| 🎯 **Outcome Focus** | Judge by results, not by process |
+
+📖 **Read more**: [The Philosophy of Mayor West Mode](Docs/philosophy.md)
 
 ---
 
