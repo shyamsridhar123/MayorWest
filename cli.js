@@ -1259,6 +1259,40 @@ async function runSetupFlow() {
         },
       ]);
     }
+
+    // CRITICAL: Configure fork PR workflow approval for Copilot
+    console.log(chalk.cyan('\nConfiguring Copilot workflow approval bypass...\n'));
+    console.log(chalk.yellow('⚠ IMPORTANT: Copilot PRs require a one-time manual setting:'));
+    console.log(chalk.white('\n   GitHub → Settings → Actions → General'));
+    console.log(chalk.white('   Under "Fork pull request workflows from outside collaborators":'));
+    console.log(chalk.green('   ◉ Require approval for first-time contributors who are new to GitHub'));
+    console.log(chalk.gray('\n   (This allows Copilot PRs to run workflows without manual approval)'));
+    
+    const actionsSettingsUrl = `https://github.com/${gitHubInfo.owner}/${gitHubInfo.repo}/settings/actions`;
+    
+    const forkApproval = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'openSettings',
+        message: 'Open Actions settings to configure this?',
+        default: true,
+      },
+    ]);
+
+    if (forkApproval.openSettings) {
+      if (!openUrl(actionsSettingsUrl)) {
+        console.log(chalk.gray(`\n   Open: ${actionsSettingsUrl}`));
+      }
+      
+      await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'continue',
+          message: 'Press Enter after configuring the setting...',
+          default: true,
+        },
+      ]);
+    }
   } else {
     console.log(chalk.yellow('\nManual configuration required (gh CLI not available):'));
     console.log(chalk.gray('   GitHub → Settings → Actions → General'));
