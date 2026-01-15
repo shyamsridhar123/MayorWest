@@ -123,6 +123,7 @@ your-repo/
 **What's in progress:**
 - ⚠️ Complex multi-file refactors may need task splitting
 - ⚠️ Cross-repository dependencies not supported
+- ⚠️ PR auto-approval not supported (GitHub limitation)
 
 ---
 

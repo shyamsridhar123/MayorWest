@@ -260,6 +260,7 @@ This is an experimental tool under active development:
 - ⚠️ Some edge cases in merge conflict resolution
 - ⚠️ Cross-repository dependencies not supported
 - ⚠️ Limited to one task at a time (by design)
+- ⚠️ PR auto-approval not supported (GitHub limitation—workflows can't approve their own PRs)
 
 ---
 
@@ -295,8 +296,9 @@ These are ideas, not promises. The current focus is making the basics work relia
 | "Not a git repository" | Run `git init` and add a GitHub remote |
 | "No git remote found" | Run `git remote add origin git@github.com:user/repo.git` |
 | "Copilot doesn't activate" | Check VS Code logs; ensure YOLO settings are committed |
-| "PR doesn't merge" | Verify "Allow auto-merge" is enabled in GitHub settings |
+| "PR doesn't merge" | Verify "Allow auto-merge" is enabled in GitHub settings and required status checks are configured |
 | "Tests keep failing" | Review task acceptance criteria; simplify if needed |
+| "Workflow error: GitHub Actions is not permitted to approve PRs" | This is expected—GitHub doesn't allow workflows to approve their own PRs. Auto-merge works with status checks alone. |
 
 **Having issues?** Run `npx mayor-west-mode verify` to check your setup status.
 
