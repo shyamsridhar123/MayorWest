@@ -329,26 +329,101 @@ jobs:
             }
             
             const task = issues[0];
-            console.log(\`Found task: #\${task.number} - \${task.title}\`);
+            console.log(\\\`Found task: #\\\${task.number} - \\\${task.title}\\\`);
             
             core.setOutput('task_number', task.number);
             core.setOutput('found', 'true');
 
-      - name: Trigger Copilot via Comment
+      - name: Assign Copilot to Issue
         if: steps.find_task.outputs.found == 'true'
         uses: actions/github-script@v7
         with:
-          github-token: \${{ secrets.GITHUB_TOKEN }}
+          github-token: \${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const taskNumber = \${{ steps.find_task.outputs.task_number }};
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
             
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: taskNumber,
-              body: '@copilot Please implement this task according to the acceptance criteria above.'
+            // Step 1: Find Copilot agent ID using suggestedActors query
+            console.log('Looking for copilot coding agent...');
+            const findAgentQuery = \\\`
+              query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) {
+                  suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
+                    nodes {
+                      ... on Bot {
+                        id
+                        login
+                        __typename
+                      }
+                    }
+                  }
+                }
+              }
+            \\\`;
+            
+            const agentResponse = await github.graphql(findAgentQuery, { owner, repo });
+            const actors = agentResponse.repository.suggestedActors.nodes;
+            const copilotAgent = actors.find(actor => actor.login === 'copilot-swe-agent');
+            
+            if (!copilotAgent) {
+              console.log('Available actors:', actors.map(a => a.login).join(', '));
+              throw new Error('Copilot coding agent (copilot-swe-agent) is not available for this repository');
+            }
+            
+            console.log(\\\`Found copilot agent with ID: \\\${copilotAgent.id}\\\`);
+            
+            // Step 2: Get issue ID and current assignees
+            const issueQuery = \\\`
+              query($owner: String!, $repo: String!, $issueNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issueNumber) {
+                    id
+                    assignees(first: 100) {
+                      nodes { id }
+                    }
+                  }
+                }
+              }
+            \\\`;
+            
+            const issueResponse = await github.graphql(issueQuery, { 
+              owner, 
+              repo, 
+              issueNumber: taskNumber 
             });
-            console.log(\`Triggered Copilot on issue #\${taskNumber} via @copilot mention\`);
+            
+            const issueId = issueResponse.repository.issue.id;
+            const currentAssignees = issueResponse.repository.issue.assignees.nodes.map(a => a.id);
+            
+            // Step 3: Assign Copilot using replaceActorsForAssignable mutation
+            const assignMutation = \\\`
+              mutation($assignableId: ID!, $actorIds: [ID!]!) {
+                replaceActorsForAssignable(input: {
+                  assignableId: $assignableId,
+                  actorIds: $actorIds
+                }) {
+                  assignable {
+                    ... on Issue {
+                      id
+                      number
+                      assignees(first: 10) {
+                        nodes { login }
+                      }
+                    }
+                  }
+                }
+              }
+            \\\`;
+            
+            const newAssignees = [...currentAssignees, copilotAgent.id];
+            const assignResponse = await github.graphql(assignMutation, {
+              assignableId: issueId,
+              actorIds: newAssignees
+            });
+            
+            const assignedLogins = assignResponse.replaceActorsForAssignable.assignable.assignees.nodes.map(a => a.login);
+            console.log(\\\`✅ Assigned to issue #\\\${taskNumber}: \\\${assignedLogins.join(', ')}\\\`);
 `,
 
   '.github/ISSUE_TEMPLATE/mayor-task.md': () => `---
@@ -570,26 +645,33 @@ async function runSetupFlow() {
   });
 
   console.log('\n2. Configure GitHub repository settings:');
-  console.log(chalk.cyan('   a) Enable auto-merge:'));
-  console.log(chalk.gray('      GitHub → Settings → Pull Requests → Allow auto-merge'));
-  console.log(chalk.cyan('   b) Enable branch protection:'));
-  console.log(chalk.gray('      GitHub → Settings → Branches → Add Rule'));
-  console.log(chalk.gray('      ├─ Branch: main'));
-  console.log(chalk.gray('      ├─ ☑ Require status checks'));
-  console.log(chalk.gray('      └─ ☑ Require PR reviews'));
+  console.log(chalk.cyan('   Run the configure command:'));
+  console.log(chalk.yellow('   npx mayor-west-mode configure'));
+  console.log(chalk.gray('   This will set up auto-merge, workflow permissions, and branch protection.'));
 
-  console.log('\n3. Commit and push:');
+  console.log('\n3. Create a Personal Access Token (PAT):');
+  console.log(chalk.gray('   The orchestrator needs a PAT to assign Copilot to issues.'));
+  console.log(chalk.cyan('   a) Create token at: https://github.com/settings/personal-access-tokens/new'));
+  console.log(chalk.gray('   b) Repository access: Select your repository'));
+  console.log(chalk.gray('   c) Permissions: Actions, Contents, Issues, Pull-requests (Read+Write)'));
+  console.log(chalk.cyan('   d) Add as secret: gh secret set GH_AW_AGENT_TOKEN'));
+
+  console.log('\n4. Set fork PR workflow approval (one-time):');
+  console.log(chalk.gray('   Settings → Actions → General → Fork pull request workflows'));
+  console.log(chalk.gray('   Select: "Require approval for first-time contributors who are new to GitHub"'));
+
+  console.log('\n5. Commit and push:');
   console.log(chalk.gray('   git add .vscode .github'));
-  console.log(chalk.gray('   git commit -m "Mayor West Mode: Add autonomous workflows"'));
+  console.log(chalk.gray('   git commit -m "[MAYOR] Add autonomous workflows"'));
   console.log(chalk.gray('   git push origin main'));
 
-  console.log('\n4. Test the setup:');
+  console.log('\n6. Test the setup:');
   console.log(chalk.gray('   GitHub → Actions → Mayor West Orchestrator → Run workflow'));
 
-  console.log('\n5. Create your first task:');
+  console.log('\n7. Create your first task:');
   console.log(chalk.gray('   GitHub → Issues → New → Mayor Task template'));
 
-  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx mayor-west-mode verify'));
+  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx mayor-west-mode configure'));
 }
 
 // ============================================================================
@@ -665,6 +747,9 @@ function showHelp() {
   console.log(chalk.yellow('  verify'));
   console.log(chalk.gray('    Verify that all Mayor West Mode files are in place\n'));
 
+  console.log(chalk.yellow('  configure'));
+  console.log(chalk.gray('    Configure GitHub repository settings (auto-merge, permissions, etc.)\n'));
+
   console.log(chalk.yellow('  help'));
   console.log(chalk.gray('    Show this help message\n'));
 
@@ -737,6 +822,133 @@ function showExamples() {
   console.log(chalk.gray('   - Complex: 30-60 minutes (multi-component changes)\n'));
 }
 
+// ============================================================================
+// CONFIGURE COMMAND - GitHub Repository Settings
+// ============================================================================
+
+async function runConfigureFlow() {
+  log.header('⚙️  Configuring GitHub Repository Settings');
+
+  // Verify git repository and GitHub CLI
+  if (!isGitRepository()) {
+    log.error('Not a git repository. Please run this from a git repository root.');
+    process.exit(1);
+  }
+
+  const remoteUrl = getGitRemoteUrl();
+  const gitHubInfo = parseGitHubUrl(remoteUrl);
+  if (!gitHubInfo) {
+    log.error('Could not parse GitHub URL. Ensure remote points to GitHub.');
+    process.exit(1);
+  }
+
+  // Check if gh CLI is installed
+  try {
+    execSync('gh --version', { stdio: 'ignore' });
+  } catch (e) {
+    log.error('GitHub CLI (gh) is required. Install it from: https://cli.github.com');
+    process.exit(1);
+  }
+
+  // Check if authenticated
+  try {
+    execSync('gh auth status', { stdio: 'ignore' });
+  } catch (e) {
+    log.error('Not authenticated with GitHub CLI. Run: gh auth login');
+    process.exit(1);
+  }
+
+  const { owner, repo } = gitHubInfo;
+  log.success(`Configuring: ${owner}/${repo}`);
+  log.divider();
+
+  const spinner = ora('Configuring repository settings...').start();
+  const results = [];
+
+  // 1. Enable auto-merge on repository
+  try {
+    spinner.text = 'Enabling auto-merge...';
+    execSync(`gh api repos/${owner}/${repo} -X PATCH -f allow_auto_merge=true`, { stdio: 'ignore' });
+    results.push({ name: 'Auto-merge enabled', success: true });
+  } catch (e) {
+    results.push({ name: 'Auto-merge enabled', success: false, error: e.message });
+  }
+
+  // 2. Set workflow permissions to read-write
+  try {
+    spinner.text = 'Setting workflow permissions...';
+    execSync(`gh api repos/${owner}/${repo}/actions/permissions/workflow -X PUT -f default_workflow_permissions=write -F can_approve_pull_request_reviews=true`, { stdio: 'ignore' });
+    results.push({ name: 'Workflow permissions (write)', success: true });
+  } catch (e) {
+    results.push({ name: 'Workflow permissions (write)', success: false, error: e.message });
+  }
+
+  // 3. Set branch protection (minimal - just to enable auto-merge)
+  try {
+    spinner.text = 'Setting branch protection...';
+    const branchProtection = JSON.stringify({
+      required_status_checks: { strict: false, contexts: [] },
+      enforce_admins: false,
+      required_pull_request_reviews: null,
+      restrictions: null
+    });
+    // Write to temp file for cross-platform compatibility
+    const tempFile = path.join(process.cwd(), '.mayor-west-temp.json');
+    fs.writeFileSync(tempFile, branchProtection);
+    try {
+      execSync(`gh api repos/${owner}/${repo}/branches/main/protection -X PUT --input "${tempFile}"`, { stdio: 'ignore' });
+      results.push({ name: 'Branch protection (main)', success: true });
+    } finally {
+      // Clean up temp file
+      if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+    }
+  } catch (e) {
+    results.push({ name: 'Branch protection (main)', success: false, error: e.message });
+  }
+
+  spinner.stop();
+
+  // Display results
+  log.header('Configuration Results');
+  results.forEach(r => {
+    if (r.success) {
+      log.success(r.name);
+    } else {
+      log.warning(`${r.name}: ${r.error || 'Failed'}`);
+    }
+  });
+
+  log.divider();
+
+  // Check for GH_AW_AGENT_TOKEN
+  console.log(chalk.cyan.bold('\n🔑 Personal Access Token Setup\n'));
+  console.log(chalk.gray('The orchestrator needs a Personal Access Token (PAT) to assign Copilot to issues.'));
+  console.log(chalk.gray('The default GITHUB_TOKEN does not have permission to assign bot accounts.\n'));
+  
+  console.log(chalk.yellow('Create a Fine-Grained PAT at:'));
+  console.log(chalk.cyan('  https://github.com/settings/personal-access-tokens/new\n'));
+  
+  console.log(chalk.gray('Required permissions:'));
+  console.log(chalk.gray('  • Repository access: ' + chalk.white(`${owner}/${repo}`)));
+  console.log(chalk.gray('  • Actions: Read and Write'));
+  console.log(chalk.gray('  • Contents: Read and Write'));
+  console.log(chalk.gray('  • Issues: Read and Write'));
+  console.log(chalk.gray('  • Pull requests: Read and Write\n'));
+  
+  console.log(chalk.yellow('Then add it as a repository secret:'));
+  console.log(chalk.cyan('  gh secret set GH_AW_AGENT_TOKEN\n'));
+
+  // Check fork PR workflow approval setting
+  console.log(chalk.cyan.bold('🔧 Fork PR Workflow Approval\n'));
+  console.log(chalk.gray('For Copilot PRs to run workflows without manual approval:\n'));
+  console.log(chalk.gray('  1. Go to: Settings → Actions → General'));
+  console.log(chalk.gray('  2. Under "Fork pull request workflows from contributors"'));
+  console.log(chalk.gray('  3. Select: "Require approval for first-time contributors who are new to GitHub"'));
+  console.log(chalk.gray('  4. Click Save\n'));
+
+  log.success('Configuration complete! Run: npx mayor-west-mode verify');
+}
+
 function showStatus() {
   log.header('Mayor West Mode Status');
 
@@ -792,6 +1004,9 @@ async function main() {
         break;
       case 'verify':
         await runVerifyFlow();
+        break;
+      case 'configure':
+        await runConfigureFlow();
         break;
       case 'help':
         showHelp();

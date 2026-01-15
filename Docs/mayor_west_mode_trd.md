@@ -733,6 +733,101 @@ jobs:
 | **Require branches to be up to date** | ✅ Enabled | Prevents merge of stale branches | ✅ Standard GitHub security best practice |
 | **Require code review** | ✅ (1 review) | Enforces at least one approval (auto-merge workflow provides this) | ✅ Can be satisfied by automated reviews[web:69] |
 | **Dismiss stale PR reviews** | ✅ Enabled | Ensures reviews are current after new commits | ✅ Standard practice |
+| **Workflow permissions** | Read and Write | Allows workflows to create PRs, approve, and merge | ✅ Required for auto-merge workflow |
+| **Fork PR workflow approval** | First-time contributors new to GitHub | Prevents workflow blocking for Copilot PRs | ✅ Copilot is not "new to GitHub" |
+
+### 4.7 Personal Access Token (PAT) Requirements
+
+**Purpose**: The orchestrator workflow needs elevated permissions to assign Copilot (a bot account) to issues. The default `GITHUB_TOKEN` cannot assign bot actors.
+
+**Token Name**: `GH_AW_AGENT_TOKEN`
+
+**Token Type**: Fine-grained Personal Access Token (PAT)
+
+**Required Permissions**:
+
+| Permission | Level | Purpose |
+|------------|-------|---------|
+| **Actions** | Read and Write | Trigger and manage workflow runs |
+| **Contents** | Read and Write | Read repository files, push branches |
+| **Issues** | Read and Write | Assign Copilot to issues |
+| **Pull requests** | Read and Write | Create and manage PRs |
+
+**Repository Access**: Limit to specific repository (not all repositories)
+
+**Setup Steps**:
+1. Go to: https://github.com/settings/personal-access-tokens/new
+2. Set token name: `mayor-west-agent-token`
+3. Set expiration: 90 days (or longer)
+4. Select repository: Your target repository
+5. Grant permissions listed above
+6. Generate token and copy value
+7. Add as repository secret: `gh secret set GH_AW_AGENT_TOKEN`
+
+**Validation**:
+- ✅ GraphQL `replaceActorsForAssignable` mutation requires elevated token
+- ✅ `suggestedActors` query with `CAN_BE_ASSIGNED` capability returns `copilot-swe-agent`
+- ✅ Token precedence: `GH_AW_AGENT_TOKEN` → `GITHUB_TOKEN` (fallback)
+
+### 4.8 Copilot Assignment via GraphQL API
+
+**Purpose**: Assign the Copilot coding agent (`copilot-swe-agent`) to issues using GitHub's GraphQL API.
+
+**Why GraphQL?**: The REST API `addAssignees` endpoint does not support bot account assignment. The GraphQL `replaceActorsForAssignable` mutation is required.
+
+**Step 1: Find Copilot Agent ID**
+```graphql
+query($owner: String!, $repo: String!) {
+  repository(owner: $owner, name: $repo) {
+    suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
+      nodes {
+        ... on Bot {
+          id
+          login
+        }
+      }
+    }
+  }
+}
+```
+**Expected Result**: `login: "copilot-swe-agent"`
+
+**Step 2: Get Issue ID**
+```graphql
+query($owner: String!, $repo: String!, $issueNumber: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issue(number: $issueNumber) {
+      id
+      assignees(first: 100) {
+        nodes { id }
+      }
+    }
+  }
+}
+```
+
+**Step 3: Assign Copilot**
+```graphql
+mutation($assignableId: ID!, $actorIds: [ID!]!) {
+  replaceActorsForAssignable(input: {
+    assignableId: $assignableId,
+    actorIds: $actorIds
+  }) {
+    assignable {
+      ... on Issue {
+        assignees(first: 10) {
+          nodes { login }
+        }
+      }
+    }
+  }
+}
+```
+
+**Validation**:
+- ✅ Discovered from `gh-aw` GitHub Next extension research
+- ✅ Tested in production (January 2026)
+- ✅ Requires `GH_AW_AGENT_TOKEN` with elevated permissions
 
 **Pre-requisite Checklist**:
 - [ ] Repository created
@@ -744,6 +839,11 @@ jobs:
 - [ ] "Allow auto-merge" enabled in repo settings
 - [ ] Status checks required in branch protection
 - [ ] At least 1 status check configured (tests)
+- [ ] Workflow permissions set to "Read and Write"
+- [ ] "Allow GitHub Actions to create and approve pull requests" enabled
+- [ ] Fork PR approval set to "first-time contributors who are new to GitHub"
+- [ ] `GH_AW_AGENT_TOKEN` secret created with fine-grained PAT
+- [ ] Copilot coding agent enabled for the repository
 
 ---
 
