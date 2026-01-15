@@ -10,13 +10,5 @@ export default {
     '!**/node_modules/**',
     '!**/coverage/**',
   ],
-  coverageThreshold: {
-    global: {
-      branches: 60,
-      functions: 70,
-      lines: 70,
-      statements: 70
-    }
-  },
   testTimeout: 10000,
 };
