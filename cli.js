@@ -1095,6 +1095,99 @@ async function runVerifyFlow() {
     }
   }
 
+  // Security Configuration Checks
+  const securityConfigPath = '.github/mayor-west.yml';
+  const securityConfigExists = fs.existsSync(securityConfigPath);
+  
+  checks.push({
+    name: 'Security config exists',
+    pass: securityConfigExists,
+    errorMsg: `Security config missing: ${securityConfigPath}. Run: npx mayor-west-mode setup`,
+  });
+
+  if (securityConfigExists) {
+    try {
+      const secContent = fs.readFileSync(securityConfigPath, 'utf8');
+      
+      // Check for enabled flag
+      const hasEnabledFlag = /^enabled:\s*(true|false)/m.test(secContent);
+      checks.push({
+        name: 'Security config: enabled flag present',
+        pass: hasEnabledFlag,
+        errorMsg: 'Security config missing "enabled: true/false" flag',
+      });
+
+      // Check for protected_paths section
+      const hasProtectedPaths = /^protected_paths:/m.test(secContent);
+      checks.push({
+        name: 'Security config: protected paths defined',
+        pass: hasProtectedPaths,
+        errorMsg: 'No protected_paths section in security config',
+      });
+
+      // Check critical paths are protected
+      const protectsWorkflows = secContent.includes('.github/workflows/**') || 
+                                secContent.includes('.github/workflows/*');
+      checks.push({
+        name: 'Security config: workflows protected',
+        pass: protectsWorkflows,
+        errorMsg: 'Workflows not protected! Add ".github/workflows/**" to protected_paths',
+      });
+
+      const protectsPackageJson = secContent.includes('package.json');
+      checks.push({
+        name: 'Security config: package.json protected',
+        pass: protectsPackageJson,
+        errorMsg: 'package.json not protected! Add "package.json" to protected_paths',
+      });
+
+      // Check for settings section
+      const hasSettings = /^settings:/m.test(secContent);
+      checks.push({
+        name: 'Security config: settings section present',
+        pass: hasSettings,
+        errorMsg: 'No settings section in security config',
+      });
+
+    } catch (e) {
+      checks.push({
+        name: 'Security config: readable',
+        pass: false,
+        errorMsg: `Could not read security config: ${e.message}`,
+      });
+    }
+  }
+
+  // VS Code Settings Security Check
+  const vscodeSettingsPath = '.vscode/settings.json';
+  if (fs.existsSync(vscodeSettingsPath)) {
+    try {
+      const vscContent = fs.readFileSync(vscodeSettingsPath, 'utf8');
+      
+      // Check for blocked destructive commands
+      const blocksRm = vscContent.includes('"rm"') || vscContent.includes("'rm'");
+      const blocksKill = vscContent.includes('"kill"') || vscContent.includes("'kill'");
+      const blocksResetHard = vscContent.includes('reset --hard') || vscContent.includes('reset%20--hard');
+      
+      checks.push({
+        name: 'YOLO config: blocks destructive commands',
+        pass: blocksRm && blocksKill,
+        errorMsg: 'VS Code settings should block "rm" and "kill" commands',
+      });
+
+      // Check for iteration limit
+      const hasIterationLimit = /iterationLimit.*:\s*\d+/i.test(vscContent);
+      checks.push({
+        name: 'YOLO config: iteration limit set',
+        pass: hasIterationLimit,
+        errorMsg: 'No iteration limit found in VS Code settings',
+      });
+
+    } catch (e) {
+      // JSON parse errors are ok, file might have comments
+    }
+  }
+
   // Display results
   log.divider();
   console.log('');
@@ -1146,10 +1239,10 @@ function showHelp() {
   console.log(chalk.gray('    Guided setup wizard for Mayor West Mode configuration\n'));
 
   console.log(chalk.yellow('  verify'));
-  console.log(chalk.gray('    Verify that all Mayor West Mode files are in place\n'));
+  console.log(chalk.gray('    Verify setup and security configuration (comprehensive checks)\n'));
 
   console.log(chalk.yellow('  configure'));
-  console.log(chalk.gray('    Configure GitHub repository settings (auto-merge, permissions, etc.)\n'));
+  console.log(chalk.gray('    Configure GitHub settings and security options (protected paths, merge method)\n'));
 
   console.log(chalk.yellow('  pause'));
   console.log(chalk.gray('    Pause autonomous mode (disable auto-merge for Copilot PRs)\n'));
@@ -1157,22 +1250,30 @@ function showHelp() {
   console.log(chalk.yellow('  resume'));
   console.log(chalk.gray('    Resume autonomous mode (re-enable auto-merge)\n'));
 
+  console.log(chalk.yellow('  status'));
+  console.log(chalk.gray('    Show current status including security configuration\n'));
+
   console.log(chalk.yellow('  help'));
   console.log(chalk.gray('    Show this help message\n'));
 
   console.log(chalk.yellow('  examples'));
   console.log(chalk.gray('    Show usage examples and best practices\n'));
 
-  console.log(chalk.yellow('  status'));
-  console.log(chalk.gray('    Show current Mayor West Mode status\n'));
-
   console.log(chalk.yellow('  version'));
   console.log(chalk.gray('    Show version information\n'));
+
+  console.log(chalk.cyan.bold('Security Commands:\n'));
+  console.log(chalk.gray('  setup     → Creates .github/mayor-west.yml with protected paths'));
+  console.log(chalk.gray('  configure → Modify protected paths and merge settings'));
+  console.log(chalk.gray('  verify    → Validates security config (blocked commands, protected paths)'));
+  console.log(chalk.gray('  pause     → Emergency kill switch (disables all auto-merge)'));
+  console.log(chalk.gray('  resume    → Re-enable autonomous mode\n'));
 
   console.log(chalk.cyan.bold('Examples:\n'));
   console.log(chalk.gray('  npx mayor-west-mode setup'));
   console.log(chalk.gray('  npx mayor-west-mode verify'));
-  console.log(chalk.gray('  npx mayor-west-mode pause'));
+  console.log(chalk.gray('  npx mayor-west-mode configure   # Interactive security config'));
+  console.log(chalk.gray('  npx mayor-west-mode pause       # Emergency stop'));
   console.log(chalk.gray('  npx mayor-west-mode resume\n'));
 }
 
@@ -1325,6 +1426,109 @@ async function runConfigureFlow() {
       log.warning(`${r.name}: ${r.error || 'Failed'}`);
     }
   });
+
+  log.divider();
+
+  // Security Configuration Section
+  console.log(chalk.cyan.bold('\n🛡️  Security Configuration\n'));
+  
+  const securityConfigPath = '.github/mayor-west.yml';
+  if (fs.existsSync(securityConfigPath)) {
+    const { configureSecuritySettings } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'configureSecuritySettings',
+        message: 'Would you like to configure security settings?',
+        default: false,
+      }
+    ]);
+
+    if (configureSecuritySettings) {
+      const securityAnswers = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'mergeMethod',
+          message: 'Auto-merge method:',
+          choices: [
+            { name: 'Squash (recommended - clean history)', value: 'squash' },
+            { name: 'Merge (preserve all commits)', value: 'merge' },
+            { name: 'Rebase (linear history)', value: 'rebase' },
+          ],
+          default: 'squash',
+        },
+        {
+          type: 'confirm',
+          name: 'auditComments',
+          message: 'Add audit comments to merged PRs?',
+          default: true,
+        },
+        {
+          type: 'confirm',
+          name: 'deleteBranch',
+          message: 'Delete branch after merge?',
+          default: true,
+        },
+        {
+          type: 'checkbox',
+          name: 'additionalProtectedPaths',
+          message: 'Select additional paths to protect (require human review):',
+          choices: [
+            { name: 'Dockerfile', value: 'Dockerfile', checked: false },
+            { name: 'docker-compose.yml', value: 'docker-compose*.yml', checked: false },
+            { name: 'CI config (.circleci/, .travis.yml)', value: '.circleci/**', checked: false },
+            { name: 'Kubernetes manifests (k8s/)', value: 'k8s/**', checked: false },
+            { name: 'Terraform files (*.tf)', value: '**/*.tf', checked: false },
+            { name: 'Database migrations', value: '**/migrations/**', checked: false },
+            { name: 'Security policies', value: 'SECURITY.md', checked: false },
+          ],
+        },
+      ]);
+
+      // Update security config
+      try {
+        let secContent = fs.readFileSync(securityConfigPath, 'utf8');
+        
+        // Update merge_method
+        secContent = secContent.replace(
+          /merge_method:\s*\w+/,
+          `merge_method: ${securityAnswers.mergeMethod}`
+        );
+        
+        // Update audit_comments
+        secContent = secContent.replace(
+          /audit_comments:\s*(true|false)/,
+          `audit_comments: ${securityAnswers.auditComments}`
+        );
+        
+        // Update delete_branch
+        secContent = secContent.replace(
+          /delete_branch:\s*(true|false)/,
+          `delete_branch: ${securityAnswers.deleteBranch}`
+        );
+        
+        // Add additional protected paths
+        if (securityAnswers.additionalProtectedPaths.length > 0) {
+          const newPaths = securityAnswers.additionalProtectedPaths
+            .map(p => `  - "${p}"`)
+            .join('\n');
+          
+          // Find the end of protected_paths section and insert before settings
+          secContent = secContent.replace(
+            /(\n# Settings|settings:)/,
+            `\n  # Custom protected paths\n${newPaths}\n\n$1`
+          );
+        }
+        
+        fs.writeFileSync(securityConfigPath, secContent);
+        log.success('Security configuration updated');
+        
+      } catch (e) {
+        log.warning(`Could not update security config: ${e.message}`);
+      }
+    }
+  } else {
+    log.warning('Security config not found. Run: npx mayor-west-mode setup');
+  }
 
   log.divider();
 
