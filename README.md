@@ -69,6 +69,7 @@ git push origin main
 | `npx mayor-west-mode setup` | Interactive setup wizard |
 | `npx mayor-west-mode verify` | Check configuration |
 | `npx mayor-west-mode status` | Show current state |
+| `npx mayor-west-mode audit` | **NEW!** Run autonomous repository health audit |
 | `npx mayor-west-mode examples` | Show task examples |
 | `npx mayor-west-mode help` | Show help |
 
@@ -83,9 +84,48 @@ your-repo/
 │   ├── agents/mayor-west-mode.md      ← Copilot instructions
 │   ├── workflows/
 │   │   ├── mayor-west-auto-merge.yml  ← Auto-approve & merge
-│   │   └── mayor-west-orchestrator.yml ← Task queue processing
+│   │   ├── mayor-west-orchestrator.yml ← Task queue processing
+│   │   └── mayor-west-audit.yml       ← **NEW!** Autonomous quality audits
 │   └── ISSUE_TEMPLATE/mayor-task.md   ← Task template
 ```
+
+---
+
+## 🆕 NEW: Autonomous Repository Health Audits
+
+Mayor West Mode now includes **fully autonomous code quality audits**!
+
+### What It Does
+
+The audit feature scans your repository for common issues and automatically creates mayor-tasks to fix them:
+
+- 📚 Missing documentation (README, LICENSE)
+- 🧪 Missing test infrastructure
+- 🔧 Missing build scripts (test, lint, build)
+- 📝 Missing .gitignore
+- 📦 Dependency issues
+
+### How to Use
+
+```bash
+# Run audit manually
+npx mayor-west-mode audit
+
+# Or set up autonomous weekly audits
+npx mayor-west-mode setup  # Include audit workflow
+# Runs automatically every Sunday at midnight
+```
+
+### Autonomous Workflow
+
+```
+Sunday → Audit Runs → Finds Issues → Creates GitHub Issues → 
+Orchestrator Assigns → Copilot Fixes → PR Merges → Repeat
+```
+
+**Result**: Your repository continuously improves itself! 🎉
+
+See [audit-feature.md](Docs/audit-feature.md) for complete documentation.
 
 ---
 
@@ -107,6 +147,7 @@ your-repo/
 |----------|-------------|
 | [CLI-README.md](Docs/CLI-README.md) | Complete README with all features |
 | [cli-guide.md](Docs/cli-guide.md) | Detailed CLI user guide |
+| [audit-feature.md](Docs/audit-feature.md) | **NEW!** Autonomous audit feature guide |
 | [mayor_west_mode_trd.md](Docs/mayor_west_mode_trd.md) | Technical Requirements Document |
 | [mayor_west_quick_ref.md](Docs/mayor_west_quick_ref.md) | Quick reference card |
 | [testing-guide.md](Docs/testing-guide.md) | Comprehensive testing guide |
@@ -148,7 +189,8 @@ See [testing-guide.md](Docs/testing-guide.md) for detailed testing information.
 - ✅ YOLO auto-approval for safe commands
 - ✅ Auto-merge workflow pipeline
 - ✅ Task queue orchestration
-- ✅ Comprehensive test suite (30 tests)
+- ✅ Comprehensive test suite (37 tests)
+- ✅ **NEW!** Autonomous repository health audits
 
 **What's in progress:**
 - ⚠️ Complex multi-file refactors may need task splitting

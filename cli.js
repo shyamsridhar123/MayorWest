@@ -55,6 +55,11 @@ const FILES_TO_CREATE = {
     category: 'template',
     critical: false,
   },
+  '.github/workflows/mayor-west-audit.yml': {
+    displayName: 'Autonomous Audit Workflow',
+    category: 'workflow',
+    critical: false,
+  },
 };
 
 // ============================================================================
@@ -438,6 +443,124 @@ Task is complete when:
 - [ ] PR created with description
 - [ ] PR ready for merge
 `,
+
+  '.github/workflows/mayor-west-audit.yml': () => `name: Mayor West Autonomous Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Mayor West Mode
+        run: npm install -g mayor-west-mode
+
+      - name: Run Autonomous Audit
+        id: audit
+        run: |
+          echo "Running autonomous repository health audit..."
+          npx mayor-west-mode audit || true
+          echo "Audit complete"
+
+      - name: Check for Audit Findings
+        id: check_findings
+        run: |
+          # Note: \$ escaping needed for GitHub Actions template literal → workflow YAML
+          if [ -d ".mayor-west-audit" ] && [ "$(ls -A .mayor-west-audit)" ]; then
+            echo "findings=true" >> \$GITHUB_OUTPUT
+            echo "Found audit issues"
+          else
+            echo "findings=false" >> \$GITHUB_OUTPUT
+            echo "No audit issues found"
+          fi
+
+      - name: Create GitHub Issues from Audit Findings
+        if: steps.check_findings.outputs.findings == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const auditDir = '.mayor-west-audit';
+            if (!fs.existsSync(auditDir)) {
+              console.log('No audit directory found');
+              return;
+            }
+            
+            const files = fs.readdirSync(auditDir);
+            console.log('Found ' + files.length + ' audit findings');
+            
+            for (const file of files) {
+              const filePath = path.join(auditDir, file);
+              const content = fs.readFileSync(filePath, 'utf-8');
+              
+              // Extract title from first line (## Audit Finding: category)
+              const titleMatch = content.match(/## Audit Finding: (.+)/);
+              const category = titleMatch ? titleMatch[1] : 'unknown';
+              
+              // Extract description from markdown (simple text extraction)
+              // Note: Using string concat to avoid template literal escaping issues in workflow
+              const lines = content.split('\\n');
+              let description = '';
+              for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('**Description**')) {
+                  description = lines[i + 1] || '';
+                  break;
+                }
+              }
+              
+              const issueTitle = '[MAYOR] Audit: ' + category + ' - ' + description.substring(0, 50) + '...';
+              
+              try {
+                const issue = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: issueTitle,
+                  body: content,
+                  labels: ['mayor-task', 'audit', 'automated']
+                });
+                
+                console.log('✅ Created issue #' + issue.data.number + ': ' + issueTitle);
+              } catch (error) {
+                console.log('❌ Failed to create issue: ' + error.message);
+              }
+            }
+
+      - name: Cleanup Audit Files
+        if: always()
+        run: |
+          rm -rf .mayor-west-audit
+          echo "Cleaned up audit artifacts"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=== Autonomous Audit Complete ==="
+          if [ "\${{ steps.check_findings.outputs.findings }}" == "true" ]; then
+            echo "✅ Issues created from audit findings"
+            echo "Next: Run Mayor West Orchestrator to assign tasks to Copilot"
+          else
+            echo "✅ No issues found - repository is healthy!"
+          fi
+`,
 };
 
 // ============================================================================
@@ -673,10 +796,13 @@ function showHelp() {
   console.log(chalk.yellow('  status'));
   console.log(chalk.gray('    Show current Mayor West Mode status\n'));
 
+  console.log(chalk.yellow('  audit'));
+  console.log(chalk.gray('    Run autonomous repository health audit and generate improvement tasks\n'));
+
   console.log(chalk.cyan.bold('Examples:\n'));
   console.log(chalk.gray('  npx mayor-west-mode setup'));
   console.log(chalk.gray('  npx mayor-west-mode verify'));
-  console.log(chalk.gray('  npx mayor-west-mode examples\n'));
+  console.log(chalk.gray('  npx mayor-west-mode audit\n'));
 }
 
 function showExamples() {
@@ -756,6 +882,247 @@ function showStatus() {
 }
 
 // ============================================================================
+// AUDIT FLOW - AUTONOMOUS REPOSITORY HEALTH CHECK
+// ============================================================================
+
+async function runAuditFlow() {
+  log.header('🔍 Repository Health Audit');
+
+  console.log(chalk.cyan(
+    'Scanning repository for quality improvements and technical debt...\n'
+  ));
+
+  // Verify git repository
+  if (!isGitRepository()) {
+    log.error('Not a git repository. Please run this from a git repository root.');
+    process.exit(1);
+  }
+
+  const spinner = ora('Running audit checks...').start();
+  const findings = [];
+
+  // Audit Check 1: Missing or outdated documentation
+  spinner.text = 'Checking documentation...';
+  if (!fs.existsSync('README.md')) {
+    findings.push({
+      severity: 'high',
+      category: 'documentation',
+      title: 'Missing README.md',
+      description: 'Repository lacks a README.md file for project documentation',
+      acceptance: [
+        'Create README.md with project overview',
+        'Add installation instructions',
+        'Add usage examples',
+        'Add contributing guidelines'
+      ]
+    });
+  }
+
+  // Audit Check 2: Missing package.json scripts
+  spinner.text = 'Checking package.json configuration...';
+  if (fs.existsSync('package.json')) {
+    const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
+    // Only check for test and lint - build is optional for CLI tools
+    const requiredScripts = ['test', 'lint'];
+    const missingScripts = requiredScripts.filter(script => !packageJson.scripts || !packageJson.scripts[script]);
+    
+    if (missingScripts.length > 0) {
+      findings.push({
+        severity: 'medium',
+        category: 'build-tooling',
+        title: 'Missing package.json scripts',
+        description: `Package.json lacks standard scripts: ${missingScripts.join(', ')}`,
+        acceptance: missingScripts.map(script => `Add "${script}" script to package.json`)
+      });
+    }
+  }
+
+  // Audit Check 3: Missing .gitignore
+  spinner.text = 'Checking .gitignore...';
+  if (!fs.existsSync('.gitignore')) {
+    findings.push({
+      severity: 'medium',
+      category: 'configuration',
+      title: 'Missing .gitignore file',
+      description: 'Repository lacks a .gitignore file to exclude build artifacts and dependencies',
+      acceptance: [
+        'Create .gitignore file',
+        'Add node_modules/ to .gitignore',
+        'Add common build directories (dist/, build/)',
+        'Add OS-specific files (.DS_Store, Thumbs.db)'
+      ]
+    });
+  }
+
+  // Audit Check 4: Missing LICENSE file
+  spinner.text = 'Checking license...';
+  if (!fs.existsSync('LICENSE') && !fs.existsSync('LICENSE.md')) {
+    findings.push({
+      severity: 'low',
+      category: 'legal',
+      title: 'Missing LICENSE file',
+      description: 'Repository lacks a license file, which clarifies usage rights',
+      acceptance: [
+        'Add LICENSE file with appropriate open source license (MIT, Apache 2.0, etc.)',
+        'Update package.json with license field'
+      ]
+    });
+  }
+
+  // Audit Check 5: Missing tests directory
+  spinner.text = 'Checking test coverage...';
+  const testDirs = ['test', 'tests', '__tests__', 'spec'];
+  const hasTestDir = testDirs.some(dir => fs.existsSync(dir));
+  const hasTestFiles = fs.existsSync('.') && 
+    fs.readdirSync('.').some(file => file.endsWith('.test.js') || file.endsWith('.spec.js'));
+  
+  if (!hasTestDir && !hasTestFiles) {
+    findings.push({
+      severity: 'high',
+      category: 'testing',
+      title: 'Missing test infrastructure',
+      description: 'Repository lacks test files or test directory structure',
+      acceptance: [
+        'Create test directory structure',
+        'Add testing framework (Jest, Mocha, etc.)',
+        'Write initial unit tests for core functionality',
+        'Configure test script in package.json'
+      ]
+    });
+  }
+
+  // Audit Check 6: Outdated dependencies (basic check)
+  spinner.text = 'Checking dependencies...';
+  if (fs.existsSync('package.json')) {
+    const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
+    if (!packageJson.dependencies && !packageJson.devDependencies) {
+      findings.push({
+        severity: 'low',
+        category: 'dependencies',
+        title: 'No dependencies defined',
+        description: 'Package.json has no dependencies or devDependencies listed',
+        acceptance: [
+          'Review if any dependencies should be added',
+          'Document why there are no dependencies if intentional'
+        ]
+      });
+    }
+  }
+
+  spinner.stop();
+
+  // Display audit results
+  log.divider();
+  
+  if (findings.length === 0) {
+    log.success(chalk.bold('No issues found! Repository is healthy. 🎉\n'));
+    return;
+  }
+
+  console.log(chalk.yellow.bold(`Found ${findings.length} improvement${findings.length > 1 ? 's' : ''}:\n`));
+  
+  findings.forEach((finding, index) => {
+    const severityColor = {
+      high: chalk.red,
+      medium: chalk.yellow,
+      low: chalk.gray
+    }[finding.severity];
+    
+    console.log(severityColor(`${index + 1}. [${finding.severity.toUpperCase()}] ${finding.title}`));
+    console.log(chalk.gray(`   Category: ${finding.category}`));
+    console.log(chalk.gray(`   ${finding.description}\n`));
+  });
+
+  log.divider();
+
+  // Prompt user to create issues
+  const { createIssues } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'createIssues',
+      message: 'Create mayor-task GitHub issues for these findings?',
+      default: true
+    }
+  ]);
+
+  if (!createIssues) {
+    log.info('Audit complete. No issues created.');
+    return;
+  }
+
+  // Display issue creation plan
+  console.log(chalk.cyan('\nIssue creation plan:'));
+  findings.forEach((finding, index) => {
+    console.log(chalk.gray(`  ${index + 1}. [MAYOR] ${finding.title}`));
+  });
+
+  const { confirmCreate } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'confirmCreate',
+      message: '\nProceed with creating these issues on GitHub?',
+      default: false
+    }
+  ]);
+
+  if (!confirmCreate) {
+    log.info('Issue creation cancelled.');
+    return;
+  }
+
+  // Generate issue bodies
+  console.log(chalk.cyan('\n📝 Generating issue templates...\n'));
+  
+  findings.forEach((finding, index) => {
+    const issueBody = `## Audit Finding: ${finding.category}
+
+**Priority**: ${finding.severity.toUpperCase()}
+
+**Description**:
+${finding.description}
+
+## Acceptance Criteria
+
+${finding.acceptance.map(criterion => `- [ ] ${criterion}`).join('\n')}
+
+## Technical Notes
+
+This issue was automatically generated by the Mayor West Mode audit system.
+
+**Category**: ${finding.category}
+**Severity**: ${finding.severity}
+
+## Definition of Done
+
+Task is complete when:
+- [ ] All acceptance criteria are met
+- [ ] Changes are tested
+- [ ] Code passes linting
+- [ ] PR is merged
+
+---
+*Generated by: mayor-west-mode audit @ ${new Date().toISOString()}*`;
+
+    const fileName = `mayor-task-audit-${Date.now()}-${index + 1}.md`;
+    const filePath = path.join('.mayor-west-audit', fileName);
+    
+    ensureDirectory(filePath);
+    fs.writeFileSync(filePath, issueBody, 'utf-8');
+    
+    log.success(`Created: ${fileName}`);
+  });
+
+  log.divider();
+  console.log(chalk.cyan.bold('\n✅ Audit Complete!\n'));
+  console.log(chalk.gray('Issue templates created in: .mayor-west-audit/\n'));
+  console.log(chalk.yellow('Next steps:'));
+  console.log(chalk.gray('1. Review the generated issue templates'));
+  console.log(chalk.gray('2. Create issues manually from these templates, or'));
+  console.log(chalk.gray('3. Use GitHub CLI: gh issue create --title "[MAYOR] ..." --body-file <file>'));
+  console.log(chalk.gray('4. Run the orchestrator to have Copilot fix them autonomously\n'));
+}
+
+// ============================================================================
 // CLI ENTRY POINT
 // ============================================================================
 
@@ -778,6 +1145,9 @@ async function main() {
         break;
       case 'status':
         showStatus();
+        break;
+      case 'audit':
+        await runAuditFlow();
         break;
       default:
         console.log(chalk.red(`Unknown command: ${command}\n`));
