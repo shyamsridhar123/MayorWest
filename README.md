@@ -29,35 +29,38 @@ Mayor West Mode takes a different approach: **configure once, trust the guardrai
 ┌─────────────────────────────────────────────────────────────────┐
 │         Mayor West Mode: 4-Layer Security Architecture          │
 ├─────────────────────────────────────────────────────────────────┤
-│  Layer 1: Command Blocking                                      │
-│  ├── ✅ Auto-approve: git commit, git push, npm test, npm build │
-│  └── ❌ Blocked: rm, rm -rf, kill, git reset --hard, git push -f│
+│  Layer 1: Actor Allowlist (CODEOWNERS)                          │
+│  ├── ✅ @copilot → Authorized for auto-merge                    │
+│  ├── ✅ @your-username → Authorized for auto-merge              │
+│  └── ❌ Unknown actors → Requires manual review                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  Layer 2: Protected Paths                                       │
+│  Layer 2: Protected Paths (mayor-west.yml)                      │
 │  ├── 🔒 .github/workflows/** → Human review required            │
 │  ├── 🔒 package.json, *.lock → Human review required            │
 │  └── ✅ src/**/*.ts → Auto-merge allowed                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 3: Kill Switch                                           │
-│  ├── npx mayor-west-mode pause  → Disable all auto-merge        │
-│  └── npx mayor-west-mode resume → Re-enable auto-merge          │
+│  ├── enabled: false → Disable all auto-merge instantly          │
+│  └── enabled: true  → Resume autonomous operations              │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 4: Audit Trail                                           │
-│  ├── PR comments with merge timestamp and changed files         │
-│  └── Full GitHub Actions logs for every operation               │
+│  ├── PR comments documenting security check results             │
+│  └── Full GitHub Actions logs for every decision                │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**Plus client-side protection**: VS Code YOLO settings auto-approve safe commands (`git commit`, `npm test`) while blocking destructive ones (`rm -rf`, `git reset --hard`).
 
 ### How We Compare
 
 | Capability | Cline/Aider/Roo | Mayor West |
 |------------|-----------------|------------|
 | **Autonomy Level** | Human approves every action | Full autonomous execution |
+| **Actor Allowlist** | ❌ Not available | ✅ CODEOWNERS-based authorization |
 | **Protected Paths** | ❌ Not available | ✅ Glob patterns for critical files |
 | **Auto-merge PRs** | ❌ Manual merge only | ✅ Safe PRs auto-merge |
-| **Kill Switch** | ❌ Close the app | ✅ CLI pause/resume commands |
+| **Kill Switch** | ❌ Close the app | ✅ Config flag pause/resume |
 | **Audit Trail** | ❌ No built-in audit | ✅ Every merge documented |
-| **Blocked Commands** | ⚠️ Requires manual deny | ✅ Regex whitelist/blacklist |
 | **CI/CD Integration** | ❌ Local only | ✅ GitHub Actions orchestration |
 
 📖 [See full security architecture](#safety-guardrails-summary)
@@ -129,9 +132,11 @@ git push origin main
 your-repo/
 ├── .vscode/settings.json              ← YOLO auto-approve config
 ├── .github/
+│   ├── CODEOWNERS                     ← Actor allowlist for auto-merge
+│   ├── mayor-west.yml                 ← Security config (protected paths, kill switch)
 │   ├── agents/mayor-west-mode.md      ← Copilot instructions
 │   ├── workflows/
-│   │   ├── mayor-west-auto-merge.yml  ← Auto-approve & merge
+│   │   ├── mayor-west-auto-merge.yml  ← 4-layer security + auto-merge
 │   │   └── mayor-west-orchestrator.yml ← Task queue processing
 │   └── ISSUE_TEMPLATE/mayor-task.md   ← Task template
 ```
@@ -142,14 +147,14 @@ your-repo/
 
 | Protection | How It Works |
 |------------|--------------|
-| **Command Whitelist** | Only safe commands auto-approved (git commit, npm test, etc.) |
-| **Blocked Commands** | `rm`, `kill`, `git reset --hard`, `git push --force` require approval |
+| **Actor Allowlist** | Only actors in CODEOWNERS can trigger auto-merge |
 | **Protected Paths** | Critical files (workflows, package.json) require human review |
-| **Iteration Limit** | Stops after 15 iterations (configurable) |
-| **Kill Switch** | Instantly pause/resume with CLI commands |
+| **Kill Switch** | Set `enabled: false` in mayor-west.yml to pause everything |
 | **Audit Trail** | Every auto-merge documented with PR comment |
+| **Command Whitelist** | VS Code YOLO settings auto-approve safe commands only |
+| **Blocked Commands** | `rm`, `kill`, `git reset --hard` blocked in VS Code |
+| **Iteration Limit** | Stops after 15 iterations (configurable) |
 | **Branch Protection** | GitHub enforces status checks before merge |
-| **Test-First** | Won't commit if tests fail |
 
 ---
 

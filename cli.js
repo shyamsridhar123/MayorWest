@@ -61,6 +61,11 @@ const FILES_TO_CREATE = {
     category: 'configuration',
     critical: true,
   },
+  '.github/CODEOWNERS': {
+    displayName: 'Auto-Merge Allowlist',
+    category: 'security',
+    critical: true,
+  },
 };
 
 // ============================================================================
@@ -194,7 +199,7 @@ function checkCopilotAgentAvailable(owner, repo) {
 // ============================================================================
 
 const fileTemplates = {
-  '.vscode/settings.json': () => JSON.stringify({
+  '.vscode/settings.json': (options = {}) => JSON.stringify({
     'chat.tools.autoApprove': true,
     'chat.tools.terminal.autoApprove': {
       '/^git\\s+(commit|push)\\b/': true,
@@ -210,7 +215,7 @@ const fileTemplates = {
     'chat.agent.slowMode': false,
   }, null, 2),
 
-  '.github/agents/mayor-west-mode.md': () => `# Mayor West Mode - Copilot Agent Protocol
+  '.github/agents/mayor-west-mode.md': (options = {}) => `# Mayor West Mode - Copilot Agent Protocol
 
 You are operating in **Mayor West Mode**: eccentric, confident, autonomous.
 
@@ -309,57 +314,230 @@ You have successfully completed a task when:
 **Remember**: Mayor West doesn't ask for permission. He executes with confidence.
 `,
 
-  '.github/workflows/mayor-west-auto-merge.yml': () => `name: Mayor West Auto-Merge
+  '.github/workflows/mayor-west-auto-merge.yml': (options = {}) => `name: Mayor West Auto-Merge
+# Autonomous PR merge workflow with 4-layer security architecture
+# Layer 1: Actor allowlist (CODEOWNERS)
+# Layer 2: Protected paths check (mayor-west.yml)
+# Layer 3: Kill switch (enabled flag)
+# Layer 4: Audit trail (PR comments)
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
+    # Layer 1: Only run for Copilot PRs
     if: github.actor == 'copilot' || github.actor == 'copilot[bot]'
     
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/mayor-west.yml
+            .github/CODEOWNERS
+
+      - name: Check Security Layers
+        id: security
+        uses: actions/github-script@v7
+        with:
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // ================================================================
+            // Layer 1: Check if actor is in CODEOWNERS allowlist
+            // ================================================================
+            let actorAllowed = false;
+            const codeownersPath = '.github/CODEOWNERS';
+            
+            if (fs.existsSync(codeownersPath)) {
+              const codeowners = fs.readFileSync(codeownersPath, 'utf8');
+              const actor = context.actor;
+              // Check if actor (copilot, copilot[bot]) is mentioned
+              actorAllowed = codeowners.includes('@' + actor) || 
+                             codeowners.includes('@copilot');
+              console.log(\\\`Layer 1 - CODEOWNERS check: \\\${actorAllowed ? '✅ PASS' : '❌ FAIL'}\\\`);
+              console.log(\\\`  Actor: \\\${actor}\\\`);
+            } else {
+              // No CODEOWNERS = allow all (backwards compatibility)
+              actorAllowed = true;
+              console.log('Layer 1 - CODEOWNERS: ⚠️ No file found, allowing all actors');
+            }
+            
+            if (!actorAllowed) {
+              core.setOutput('allowed', 'false');
+              core.setOutput('reason', 'Actor not in CODEOWNERS allowlist');
+              return;
+            }
+            
+            // ================================================================
+            // Layer 2: Check protected paths
+            // ================================================================
+            const configPath = '.github/mayor-west.yml';
+            let config = { enabled: true, protected_paths: [] };
+            
+            if (fs.existsSync(configPath)) {
+              const yaml = fs.readFileSync(configPath, 'utf8');
+              // Simple YAML parsing for our known structure
+              const enabledMatch = yaml.match(/^enabled:\\s*(true|false)/m);
+              if (enabledMatch) {
+                config.enabled = enabledMatch[1] === 'true';
+              }
+              
+              // Extract protected_paths array
+              const pathsMatch = yaml.match(/protected_paths:\\s*\\n([\\s\\S]*?)(?=\\n[a-z]|$)/);
+              if (pathsMatch) {
+                const pathLines = pathsMatch[1].split('\\n');
+                config.protected_paths = pathLines
+                  .filter(line => line.trim().startsWith('-'))
+                  .map(line => line.replace(/^\\s*-\\s*["']?([^"'#]+)["']?.*$/, '$1').trim())
+                  .filter(p => p.length > 0);
+              }
+            }
+            
+            // ================================================================
+            // Layer 3: Kill switch check
+            // ================================================================
+            if (!config.enabled) {
+              console.log('Layer 3 - Kill switch: ❌ Mayor West Mode is PAUSED');
+              core.setOutput('allowed', 'false');
+              core.setOutput('reason', 'Mayor West Mode is paused (enabled: false)');
+              return;
+            }
+            console.log('Layer 3 - Kill switch: ✅ Mode is ENABLED');
+            
+            // ================================================================
+            // Layer 2 continued: Check if PR touches protected paths
+            // ================================================================
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const changedFiles = files.map(f => f.filename);
+            console.log(\\\`Changed files: \\\${changedFiles.join(', ')}\\\`);
+            
+            // Glob pattern matching
+            function matchesGlob(filepath, pattern) {
+              // Convert glob to regex
+              let regex = pattern
+                .replace(/\\./g, '\\\\.')
+                .replace(/\\*\\*/g, '<<<DOUBLESTAR>>>')
+                .replace(/\\*/g, '[^/]*')
+                .replace(/<<<DOUBLESTAR>>>/g, '.*');
+              return new RegExp('^' + regex + '\$').test(filepath);
+            }
+            
+            const protectedHits = [];
+            for (const file of changedFiles) {
+              for (const pattern of config.protected_paths) {
+                if (matchesGlob(file, pattern)) {
+                  protectedHits.push({ file, pattern });
+                }
+              }
+            }
+            
+            if (protectedHits.length > 0) {
+              console.log('Layer 2 - Protected paths: ❌ BLOCKED');
+              for (const hit of protectedHits) {
+                console.log(\\\`  \\\${hit.file} matches \\\${hit.pattern}\\\`);
+              }
+              core.setOutput('allowed', 'false');
+              core.setOutput('reason', 'PR touches protected paths: ' + protectedHits.map(h => h.file).join(', '));
+              core.setOutput('protected_files', protectedHits.map(h => h.file).join(', '));
+              return;
+            }
+            console.log('Layer 2 - Protected paths: ✅ No protected files touched');
+            
+            // All checks passed
+            console.log('\\n✅ All security layers passed - auto-merge allowed');
+            core.setOutput('allowed', 'true');
+
+      - name: Add Protected Path Comment
+        if: steps.security.outputs.allowed == 'false' && steps.security.outputs.protected_files != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: \\\`## 🛡️ Mayor West Security Check
+            
+**Auto-merge disabled** - This PR touches protected paths.
+
+**Protected files:**
+\\\${'\${{ steps.security.outputs.protected_files }}'.split(', ').map(f => '- \\\\\\\`' + f + '\\\\\\\`').join('\\n')}
+
+A human must review and merge this PR manually.
+
+---
+*Mayor West Mode - Security Layer 2 (Protected Paths)*\\\`
+            });
+
       - name: Enable Auto-Merge
+        if: steps.security.outputs.allowed == 'true'
         uses: actions/github-script@v7
         with:
           github-token: \${{ secrets.GITHUB_TOKEN }}
           script: |
             try {
-              await github.graphql(\`
+              await github.graphql(\\\`
                 mutation {
                   enablePullRequestAutoMerge(input: {
-                    pullRequestId: "\${context.payload.pull_request.node_id}"
+                    pullRequestId: "\\\${context.payload.pull_request.node_id}"
                     mergeMethod: SQUASH
                   }) {
                     pullRequest {
-                      id
-                      title
                       autoMergeRequest {
                         enabledAt
-                        mergeMethod
                       }
                     }
                   }
                 }
-              \`);
+              \\\`);
+              
+              // Layer 4: Audit trail
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: \\\`## 🤖 Mayor West Auto-Merge Enabled
+              
+✅ All security checks passed:
+- **Layer 1**: Actor in CODEOWNERS allowlist
+- **Layer 2**: No protected paths touched  
+- **Layer 3**: Mode enabled
+
+This PR will merge automatically when all status checks pass.
+
+---
+*Mayor West Mode v1.0.0*\\\`
+              });
+              
               console.log('✅ Auto-merge enabled for PR #' + context.issue.number);
-              console.log('Note: PR will merge automatically once all required status checks pass.');
             } catch (error) {
-              console.log('⚠️  Auto-merge could not be enabled:', error.message);
-              console.log('This is expected if:');
-              console.log('  - Repository does not have "Allow auto-merge" enabled in settings');
-              console.log('  - Branch protection rules are not configured');
-              console.log('  - Required status checks are not defined');
+              console.log('⚠️ Auto-merge could not be enabled:', error.message);
+              console.log('Ensure "Allow auto-merge" is enabled in repository settings.');
             }
+
+      - name: Skip Auto-Merge
+        if: steps.security.outputs.allowed == 'false' && steps.security.outputs.protected_files == ''
+        run: |
+          echo "⚠️ Auto-merge skipped: \${{ steps.security.outputs.reason }}"
 `,
 
-  '.github/workflows/mayor-west-orchestrator.yml': () => `name: Mayor West Orchestrator
+  '.github/workflows/mayor-west-orchestrator.yml': (options = {}) => `name: Mayor West Orchestrator
 
 on:
   workflow_dispatch:
@@ -690,7 +868,7 @@ Once reviewed, you can merge this PR manually.\\\`
             }
 `,
 
-  '.github/ISSUE_TEMPLATE/mayor-task.md': () => `---
+  '.github/ISSUE_TEMPLATE/mayor-task.md': (options = {}) => `---
 name: Mayor Task
 about: Create a task for autonomous execution
 labels: mayor-task
@@ -779,7 +957,7 @@ Task is complete when:
 - [ ] PR ready for merge
 `,
 
-  '.github/mayor-west.yml': () => `# Mayor West Mode Security Configuration
+  '.github/mayor-west.yml': (options = {}) => `# Mayor West Mode Security Configuration
 # This file controls autonomous merge behavior for Copilot PRs
 
 # Enable/disable Mayor West Mode (set to false to pause all auto-merges)
@@ -827,6 +1005,27 @@ audit:
   # Add comment to PR with merge details
   comment_on_merge: true
 `,
+
+  '.github/CODEOWNERS': (options = {}) => {
+    const owner = options.githubOwner || 'your-username';
+    return `# Mayor West Mode - CODEOWNERS
+# Defines who is authorized for autonomous auto-merge workflows
+# 
+# How it works:
+# - The auto-merge workflow checks if the PR author is listed here
+# - Only PRs from listed actors are eligible for auto-merge
+# - This is Layer 1 of the 4-layer security architecture
+#
+# Format: <pattern> @username @username2
+# Use * for all files (default owner)
+
+# Repository owner - authorized for auto-merge  
+* @${owner}
+
+# Copilot agent - authorized for auto-merge
+* @copilot
+`;
+  },
 };
 
 // ============================================================================
@@ -932,10 +1131,15 @@ async function runSetupFlow() {
   const spinner = ora('Creating files...').start();
   let created = 0;
 
+  // Get GitHub owner for templates that need it
+  const templateOptions = {
+    githubOwner: gitHubInfo ? gitHubInfo.owner : 'your-username',
+  };
+
   for (const [filePath, config] of Object.entries(filesToCreate)) {
     try {
       ensureDirectory(filePath);
-      const content = fileTemplates[filePath]();
+      const content = fileTemplates[filePath](templateOptions);
       fs.writeFileSync(filePath, content, 'utf-8');
       created++;
       spinner.succeed(`✓ ${chalk.green(config.displayName)}`);
