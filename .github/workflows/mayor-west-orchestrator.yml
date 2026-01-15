@@ -46,7 +46,7 @@ jobs:
             core.setOutput('task_number', task.number);
             core.setOutput('found', 'true');
 
-      - name: Trigger Copilot via Comment
+      - name: Assign Copilot to Issue
         if: steps.find_task.outputs.found == 'true'
         uses: actions/github-script@v7
         with:
@@ -54,10 +54,11 @@ jobs:
           script: |
             const taskNumber = ${{ steps.find_task.outputs.task_number }};
             
-            await github.rest.issues.createComment({
+            // Assign Copilot to the issue
+            await github.rest.issues.addAssignees({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: taskNumber,
-              body: '@copilot Please implement this task according to the acceptance criteria above.'
+              assignees: ['copilot']
             });
-            console.log(`Triggered Copilot on issue #${taskNumber} via @copilot mention`);
+            console.log(`Assigned Copilot to issue #${taskNumber}`);

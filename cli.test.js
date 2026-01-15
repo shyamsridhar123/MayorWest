@@ -66,7 +66,8 @@ describe('Mayor West Mode CLI - End-to-End Tests', () => {
 
     test('should extract dirname from nested path', () => {
       const dirname = path.dirname('.github/workflows/auto-merge.yml');
-      expect(dirname).toBe(path.join('.github', 'workflows'));
+      // Normalize both to forward slashes for cross-platform compatibility
+      expect(dirname.replace(/\\/g, '/')).toBe('.github/workflows');
     });
 
     test('should handle root level files', () => {
