@@ -53,12 +53,71 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const taskNumber = ${{ steps.find_task.outputs.task_number }};
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
             
-            // Assign Copilot to the issue
-            await github.rest.issues.addAssignees({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: taskNumber,
-              assignees: ['copilot']
-            });
-            console.log(`Assigned Copilot to issue #${taskNumber}`);
+            // Step 1: Find Copilot agent ID using suggestedActors query
+            console.log('Looking for copilot coding agent...');
+            const findAgentQuery = `
+              query($owner: String!, $repo: String!) {
+                repository(owner: $owner, name: $repo) {
+                  suggestedActors(first: 100, capabilities: CAN_BE_ASSIGNED) {
+                    nodes {
+                      ... on Bot {
+                        id
+                        login
+                        __typename
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+            
+            const agentResponse = await github.graphql(findAgentQuery, { owner, repo });
+            const actors = agentResponse.repository.suggestedActors.nodes;
+            const copilotAgent = actors.find(actor => actor.login === 'copilot-swe-agent');
+            
+            if (!copilotAgent) {
+              console.log('Available actors:', actors.map(a => a.login).join(', '));
+              throw new Error('Copilot coding agent (copilot-swe-agent) is not available for this repository');
+            }
+            
+            console.log(`Found copilot agent with ID: ${copilotAgent.id}`);
+            
+            // Step 2: Get issue ID and current assignees
+            const issueQuery = `
+              query($owner: String!, $repo: String!, $issueNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issueNumber) {
+                    id
+                    assignees(first: 100) {
+                      nodes { id }
+                    }
+                  }
+                }
+              }
+            `;
+            
+            const issueResponse = await github.graphql(issueQuery, { owner, repo, issueNumber: taskNumber });
+            const issueId = issueResponse.repository.issue.id;
+            const currentAssignees = issueResponse.repository.issue.assignees.nodes.map(a => a.id);
+            
+            console.log(`Issue ID: ${issueId}`);
+            
+            // Step 3: Assign Copilot using replaceActorsForAssignable mutation
+            const actorIds = [copilotAgent.id, ...currentAssignees.filter(id => id !== copilotAgent.id)];
+            
+            const assignMutation = `
+              mutation($assignableId: ID!, $actorIds: [ID!]!) {
+                replaceActorsForAssignable(input: {
+                  assignableId: $assignableId,
+                  actorIds: $actorIds
+                }) {
+                  __typename
+                }
+              }
+            `;
+            
+            await github.graphql(assignMutation, { assignableId: issueId, actorIds });
+            console.log(`Successfully assigned Copilot to issue #${taskNumber}`);
