@@ -1,6 +1,6 @@
 {
   "name": "mayor-west-mode",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Autonomous GitHub Copilot development workflow CLI - inspired by Family Guy's Mayor Adam West",
   "main": "index.js",
   "bin": {

@@ -498,13 +498,13 @@ jobs:
               '**@copilot-swe-agent** assigned to this task.',
               '',
               '**Before starting, read:**',
-              '- \\`.github/copilot/instructions.md\\` - Your operating protocol',
-              '- \\`.github/copilot-instructions.md\\` - Project rules',
+              '- \`.github/copilot/instructions.md\` - Your operating protocol',
+              '- \`.github/copilot-instructions.md\` - Project rules',
               '',
               '**Key requirements:**',
-              '1. Run \\`npm test\\` before committing',
-              '2. Use commit format: \\`[MAYOR] <description>\\`',
-              \`3. Include \\\\\\`Fixes #\${taskNumber}\\\\\\` in PR body\`,
+              '1. Run \`npm test\` before committing',
+              '2. Use commit format: \`[MAYOR] <description>\`',
+              \`3. Include \\\`Fixes #\${taskNumber}\\\` in PR body\`,
               '4. Never use destructive commands'
             ].join('\\n');
             
