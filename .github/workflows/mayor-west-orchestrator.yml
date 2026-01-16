@@ -276,25 +276,37 @@ jobs:
               return;
             }
             
+            // Check if Copilot is still actively working (has in_progress workflow)
+            const { data: workflowRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              status: 'in_progress',
+              per_page: 10
+            });
+            
+            const copilotActiveRun = workflowRuns.workflow_runs.find(run => 
+              run.name === 'Running Copilot coding agent' || 
+              run.actor?.login?.toLowerCase().includes('copilot')
+            );
+            
+            if (copilotActiveRun) {
+              console.log(`Copilot is still working (run ${copilotActiveRun.id}). Skipping merge.`);
+              return;
+            }
+            
             for (const pr of copilotPRs) {
               console.log(`Processing PR #${pr.number}: ${pr.title}`);
               
-              // If PR is draft, mark it as ready first
+              // Skip WIP PRs - Copilot is still working on them
+              if (pr.title.includes('[WIP]') || pr.title.toLowerCase().startsWith('wip')) {
+                console.log(`  Skipping: PR is marked as Work In Progress`);
+                continue;
+              }
+              
+              // If PR is draft, skip it - Copilot hasn't finished
               if (pr.draft) {
-                console.log(`  PR is a draft, marking as ready...`);
-                try {
-                  await github.graphql(`
-                    mutation($prId: ID!) {
-                      markPullRequestReadyForReview(input: { pullRequestId: $prId }) {
-                        pullRequest { isDraft }
-                      }
-                    }
-                  `, { prId: pr.node_id });
-                  console.log(`  Marked as ready for review`);
-                } catch (error) {
-                  console.log(`  Could not mark ready: ${error.message}`);
-                  continue;
-                }
+                console.log(`  Skipping: PR is still a draft (Copilot working)`);
+                continue;
               }
               
               // Check if PR is mergeable

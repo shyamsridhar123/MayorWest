@@ -631,31 +631,43 @@ jobs:
               return;
             }
             
+            // Check if Copilot is still actively working (has in_progress workflow)
+            const { data: workflowRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              status: 'in_progress',
+              per_page: 10
+            });
+            
+            const copilotActiveRun = workflowRuns.workflow_runs.find(run => 
+              run.name === 'Running Copilot coding agent' || 
+              run.actor?.login?.toLowerCase().includes('copilot')
+            );
+            
+            if (copilotActiveRun) {
+              console.log(\`Copilot is still working (run \${copilotActiveRun.id}). Skipping merge.\`);
+              return;
+            }
+            
             for (const pr of copilotPRs) {
               console.log(\`Processing PR #\${pr.number}: \${pr.title}\`);
               
+              // Skip WIP PRs - Copilot is still working on them
+              if (pr.title.includes('[WIP]') || pr.title.toLowerCase().startsWith('wip')) {
+                console.log('  Skipping: PR is marked as Work In Progress');
+                continue;
+              }
+              
+              // Skip draft PRs - Copilot hasn't finished
               const { data: prDetails } = await github.rest.pulls.get({
                 owner,
                 repo,
                 pull_number: pr.number
               });
               
-              // Mark draft PRs as ready for review
               if (prDetails.draft) {
-                console.log(\`  PR #\${pr.number} is a draft, marking as ready...\`);
-                try {
-                  await github.graphql(\`
-                    mutation($id: ID!) {
-                      markPullRequestReadyForReview(input: {pullRequestId: $id}) {
-                        pullRequest { id }
-                      }
-                    }
-                  \`, { id: prDetails.node_id });
-                  console.log(\`  Marked PR #\${pr.number} as ready for review\`);
-                } catch (error) {
-                  console.log(\`  Could not mark ready: \${error.message}\`);
-                  continue;
-                }
+                console.log('  Skipping: PR is still a draft (Copilot working)');
+                continue;
               }
               
               if (prDetails.mergeable_state === 'dirty' || prDetails.mergeable_state === 'blocked') {
