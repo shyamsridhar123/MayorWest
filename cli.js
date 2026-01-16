@@ -1733,6 +1733,201 @@ async function runSetupFlow() {
 }
 
 // ============================================================================
+// PLAN - BREAK DOWN PROMPTS INTO MULTIPLE ISSUES
+// ============================================================================
+
+async function runPlanFlow() {
+  log.header('📋 Mayor West Task Planner');
+  
+  console.log(chalk.gray('Break down a high-level goal into multiple detailed GitHub issues.\n'));
+
+  // Check for gh CLI
+  try {
+    execSync('gh --version', { stdio: 'pipe' });
+  } catch {
+    log.error('GitHub CLI (gh) is required for this command.');
+    console.log(chalk.gray('Install it: https://cli.github.com/'));
+    process.exit(1);
+  }
+
+  // Check for authenticated gh
+  try {
+    execSync('gh auth status', { stdio: 'pipe' });
+  } catch {
+    log.error('You must be logged in to GitHub CLI.');
+    console.log(chalk.gray('Run: gh auth login'));
+    process.exit(1);
+  }
+
+  // Get repo info
+  let repoInfo;
+  try {
+    const remoteUrl = execSync('git config --get remote.origin.url', { encoding: 'utf-8' }).trim();
+    repoInfo = parseGitHubUrl(remoteUrl);
+    if (!repoInfo) throw new Error('Not a GitHub repo');
+  } catch {
+    log.error('Could not detect GitHub repository.');
+    process.exit(1);
+  }
+
+  console.log(chalk.green(`✓ Repository: ${repoInfo.owner}/${repoInfo.repo}\n`));
+
+  // Get the high-level goal
+  const { goal } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'goal',
+      message: 'What do you want to build?',
+      validate: (input) => input.trim().length > 0 || 'Please enter a goal',
+    },
+  ]);
+
+  console.log(chalk.cyan('\n📝 Now break this down into specific tasks.'));
+  console.log(chalk.gray('Enter each task on a new line. Type "done" when finished.\n'));
+
+  const tasks = [];
+  let taskNum = 1;
+
+  while (true) {
+    const { task } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'task',
+        message: `Task ${taskNum}:`,
+        default: taskNum === 1 ? '' : 'done',
+      },
+    ]);
+
+    if (task.toLowerCase() === 'done') {
+      if (tasks.length === 0) {
+        console.log(chalk.yellow('Please add at least one task.'));
+        continue;
+      }
+      break;
+    }
+
+    if (task.trim()) {
+      tasks.push(task.trim());
+      taskNum++;
+    }
+  }
+
+  // Ask for additional context for each task
+  console.log(chalk.cyan('\n📄 Add context for each task (optional - press Enter to skip):\n'));
+
+  const detailedTasks = [];
+  for (let i = 0; i < tasks.length; i++) {
+    console.log(chalk.white.bold(`\nTask ${i + 1}: ${tasks[i]}`));
+    
+    const { context, criteria } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'context',
+        message: 'Context (why is this needed?):',
+        default: '',
+      },
+      {
+        type: 'input',
+        name: 'criteria',
+        message: 'Acceptance criteria (comma-separated):',
+        default: '',
+      },
+    ]);
+
+    detailedTasks.push({
+      title: tasks[i],
+      context: context.trim(),
+      criteria: criteria.split(',').map(c => c.trim()).filter(c => c),
+    });
+  }
+
+  // Preview and confirm
+  console.log(chalk.cyan.bold('\n📋 Issue Preview:\n'));
+  console.log(chalk.gray(`Goal: ${goal}\n`));
+  
+  detailedTasks.forEach((task, i) => {
+    console.log(chalk.white.bold(`${i + 1}. [MAYOR] ${task.title}`));
+    if (task.context) console.log(chalk.gray(`   Context: ${task.context}`));
+    if (task.criteria.length > 0) {
+      console.log(chalk.gray(`   Criteria: ${task.criteria.join(', ')}`));
+    }
+  });
+
+  const { confirm } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'confirm',
+      message: `Create ${detailedTasks.length} issues in ${repoInfo.owner}/${repoInfo.repo}?`,
+      default: true,
+    },
+  ]);
+
+  if (!confirm) {
+    console.log(chalk.yellow('\nAborted.'));
+    return;
+  }
+
+  // Create the issues
+  console.log(chalk.cyan('\n🚀 Creating issues...\n'));
+
+  const createdIssues = [];
+  for (const task of detailedTasks) {
+    const spinner = ora(`Creating: ${task.title}`).start();
+
+    // Build issue body
+    let body = `# [MAYOR] ${task.title}\n\n`;
+    body += `**Goal:** ${goal}\n\n`;
+    
+    if (task.context) {
+      body += `## Context\n\n${task.context}\n\n`;
+    }
+    
+    body += `## Acceptance Criteria\n\n`;
+    if (task.criteria.length > 0) {
+      task.criteria.forEach(c => {
+        body += `- [ ] ${c}\n`;
+      });
+    } else {
+      body += `- [ ] Implementation complete\n`;
+      body += `- [ ] Tests pass\n`;
+    }
+    
+    body += `\n## Technical Notes\n\n`;
+    body += `*Add any technical details here.*\n\n`;
+    body += `---\n`;
+    body += `*Created by Mayor West Task Planner*`;
+
+    try {
+      const result = execSync(
+        `gh issue create --repo ${repoInfo.owner}/${repoInfo.repo} --title "[MAYOR] ${task.title}" --body "${body.replace(/"/g, '\\"')}" --label mayor-task`,
+        { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      
+      const issueUrl = result.trim();
+      const issueNum = issueUrl.split('/').pop();
+      createdIssues.push({ num: issueNum, title: task.title, url: issueUrl });
+      spinner.succeed(`Created #${issueNum}: ${task.title}`);
+    } catch (error) {
+      spinner.fail(`Failed: ${task.title}`);
+      console.log(chalk.red(`   Error: ${error.message}`));
+    }
+  }
+
+  // Summary
+  console.log(chalk.green.bold(`\n✅ Created ${createdIssues.length}/${detailedTasks.length} issues!\n`));
+  
+  if (createdIssues.length > 0) {
+    console.log(chalk.cyan('Issues created:'));
+    createdIssues.forEach(issue => {
+      console.log(chalk.gray(`  #${issue.num} - ${issue.title}`));
+    });
+    
+    console.log(chalk.cyan('\n🤖 Copilot will be assigned automatically by the orchestrator workflow.'));
+    console.log(chalk.gray('Trigger manually: gh workflow run mayor-west-orchestrator.yml\n'));
+  }
+}
+
+// ============================================================================
 // VERIFICATION
 // ============================================================================
 
@@ -2102,6 +2297,9 @@ function showHelp() {
   console.log(chalk.yellow('  setup'));
   console.log(chalk.gray('    Guided setup wizard for Mayor West Mode configuration\n'));
 
+  console.log(chalk.yellow('  plan'));
+  console.log(chalk.gray('    Break down a goal into multiple GitHub issues\n'));
+
   console.log(chalk.yellow('  verify'));
   console.log(chalk.gray('    Verify that all Mayor West Mode files are in place\n'));
 
@@ -2119,6 +2317,7 @@ function showHelp() {
 
   console.log(chalk.cyan.bold('Examples:\n'));
   console.log(chalk.gray('  npx mayor-west-mode setup'));
+  console.log(chalk.gray('  npx mayor-west-mode plan'));
   console.log(chalk.gray('  npx mayor-west-mode verify'));
   console.log(chalk.gray('  npx mayor-west-mode examples\n'));
 }
@@ -2239,6 +2438,9 @@ async function main() {
         break;
       case 'verify':
         await runVerifyFlow();
+        break;
+      case 'plan':
+        await runPlanFlow();
         break;
       case 'help':
         showHelp();
