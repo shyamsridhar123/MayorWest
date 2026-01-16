@@ -322,9 +322,11 @@ You have successfully completed a task when:
 `,
 
   '.github/workflows/mayor-west-auto-merge.yml': (options = {}) => `name: Mayor West Auto-Merge
+# IMPORTANT: Uses pull_request_target to run in base repo context
+# This avoids "first-time contributor" approval requirements for Copilot PRs
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 permissions:
@@ -334,7 +336,7 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    if: github.actor == 'copilot' || github.actor == 'copilot[bot]'
+    if: github.actor == 'copilot-swe-agent' || github.actor == 'copilot' || github.actor == 'copilot[bot]'
     
     steps:
       - name: Enable Auto-Merge
@@ -360,7 +362,7 @@ jobs:
                   }
                 }
               \`);
-              console.log('✅ Auto-merge enabled for PR #' + context.issue.number);
+              console.log('✅ Auto-merge enabled for PR #' + context.payload.pull_request.number);
               console.log('Note: PR will merge automatically once all required status checks pass.');
             } catch (error) {
               console.log('⚠️  Auto-merge could not be enabled:', error.message);
@@ -373,12 +375,14 @@ jobs:
 
   '.github/workflows/mayor-west-orchestrator.yml': (options = {}) => `name: Mayor West Orchestrator
 # Autonomous task assignment and PR merge workflow
+# IMPORTANT: Uses pull_request_target to run in base repo context
+# This avoids "first-time contributor" approval requirements for Copilot PRs
 
 on:
   workflow_dispatch:
   issues:
     types: [opened, labeled]
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, closed]
   # Run periodically to catch pending approvals
   schedule:
@@ -481,9 +485,32 @@ jobs:
         with:
           github-token: \${{ secrets.GITHUB_TOKEN }}
           script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            // RULE: Only 1 PR at a time - check if Copilot already has an open PR
+            const { data: prs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 50
+            });
+            
+            const openCopilotPR = prs.find(pr => {
+              const login = pr.user.login.toLowerCase();
+              return login === 'copilot-swe-agent' || login.includes('copilot');
+            });
+            
+            if (openCopilotPR) {
+              console.log(\`Copilot already has open PR #\${openCopilotPR.number}: \${openCopilotPR.title}\`);
+              console.log('Waiting for it to be merged before assigning next task.');
+              return { found: false };
+            }
+            
+            // Find oldest unassigned mayor-task
             const { data: issues } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               labels: 'mayor-task',
               state: 'open',
               assignee: 'none',
@@ -600,9 +627,11 @@ jobs:
             });
             console.log(\`Added instructions comment to issue #\${taskNumber}\`);
 
+  # Job 2: Merge ready Copilot PRs (runs after orchestrate to avoid race conditions)
   merge-copilot-prs:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    needs: [orchestrate]
+    if: always()
     
     steps:
       - name: Find and Merge Copilot PRs
@@ -639,10 +668,11 @@ jobs:
               per_page: 10
             });
             
-            const copilotActiveRun = workflowRuns.workflow_runs.find(run => 
-              run.name === 'Running Copilot coding agent' || 
-              run.actor?.login?.toLowerCase().includes('copilot')
-            );
+            const copilotActiveRun = workflowRuns.workflow_runs.find(run => {
+              const name = (run.name || '').toLowerCase();
+              const actor = (run.actor?.login || '').toLowerCase();
+              return name.includes('copilot') || actor.includes('copilot');
+            });
             
             if (copilotActiveRun) {
               console.log(\`Copilot is still working (run \${copilotActiveRun.id}). Skipping merge.\`);
@@ -658,16 +688,39 @@ jobs:
                 continue;
               }
               
-              // Skip draft PRs - Copilot hasn't finished
+              // Check if there's an active Copilot session on this PR's branch
+              const prBranchActiveRun = workflowRuns.workflow_runs.find(run => 
+                run.head_branch === pr.head.ref
+              );
+              
+              if (prBranchActiveRun) {
+                console.log(\`  Skipping: Active Copilot session on branch \${pr.head.ref}\`);
+                continue;
+              }
+              
+              // Get full PR details
               const { data: prDetails } = await github.rest.pulls.get({
                 owner,
                 repo,
                 pull_number: pr.number
               });
               
+              // If PR is draft but no [WIP] and no active session, mark it ready
               if (prDetails.draft) {
-                console.log('  Skipping: PR is still a draft (Copilot working)');
-                continue;
+                console.log('  PR is draft but Copilot seems done. Marking ready for review...');
+                try {
+                  await github.graphql(\`
+                    mutation(\$prId: ID!) {
+                      markPullRequestReadyForReview(input: { pullRequestId: \$prId }) {
+                        pullRequest { id }
+                      }
+                    }
+                  \`, { prId: pr.node_id });
+                  console.log(\`  ✅ Marked PR #\${pr.number} as ready for review\`);
+                } catch (error) {
+                  console.log(\`  ⚠️ Could not mark ready: \${error.message}\`);
+                  continue;
+                }
               }
               
               if (prDetails.mergeable_state === 'dirty' || prDetails.mergeable_state === 'blocked') {
@@ -683,7 +736,7 @@ jobs:
                   event: 'APPROVE',
                   body: 'Auto-approved by Mayor West Orchestrator'
                 });
-                console.log(\`  Approved PR #\${pr.number}\`);
+                console.log(\`  ✅ Approved PR #\${pr.number}\`);
               } catch (error) {
                 console.log(\`  Could not approve: \${error.message}\`);
               }
@@ -695,9 +748,14 @@ jobs:
                   pull_number: pr.number,
                   merge_method: 'squash'
                 });
-                console.log(\`  Merged PR #\${pr.number}\`);
+                console.log(\`  ✅ Merged PR #\${pr.number}\`);
+                
+                // STOP after merging one PR - next run will pick up the next one
+                console.log('Stopping after merging one PR. Next task will be assigned on next run.');
+                return;
               } catch (error) {
-                console.log(\`  Could not merge: \${error.message}\`);
+                console.log(\`  ❌ Could not merge: \${error.message}\`);
+                // Continue to try next PR if this one failed
               }
             }
 `,

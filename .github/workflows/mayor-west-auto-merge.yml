@@ -107,10 +107,11 @@ jobs:
             // ================================================================
             // Layer 2 continued: Check if PR touches protected paths
             // ================================================================
+            const prNumber = context.payload.pull_request.number;
             const { data: files } = await github.rest.pulls.listFiles({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number
+              pull_number: prNumber
             });
             
             const changedFiles = files.map(f => f.filename);
@@ -161,7 +162,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: context.payload.pull_request.number,
               body: `## 🛡️ Mayor West Security Check
             
             **Auto-merge disabled** - This PR touches protected paths.
@@ -182,7 +183,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNodeId = context.payload.pull_request.node_id;
-            const prNumber = context.issue.number;
+            const prNumber = context.payload.pull_request.number;
             
             // Step 1: Mark PR as ready (in case it's a draft)
             if (context.payload.pull_request.draft) {
