@@ -119,10 +119,48 @@ git push origin main
 | Command | Purpose |
 |---------|---------|
 | `npx mayor-west-mode setup` | Interactive setup wizard |
+| `npx mayor-west-mode plan` | Break down a goal into multiple GitHub issues |
 | `npx mayor-west-mode verify` | Check configuration |
+| `npx mayor-west-mode uninstall` | Remove all Mayor West files from repo |
 | `npx mayor-west-mode status` | Show current state |
 | `npx mayor-west-mode examples` | Show task examples |
 | `npx mayor-west-mode help` | Show help |
+
+---
+
+## Task Planning
+
+Use the `plan` command to break down a complex goal into multiple issues:
+
+```bash
+npx mayor-west-mode plan
+```
+
+**Example session:**
+
+```
+? What do you want to build? Build a Pong game
+
+📝 Now break this down into specific tasks:
+? Task 1: Create HTML canvas and game loop
+? Task 2: Add paddle controls with keyboard  
+? Task 3: Implement ball physics and collision
+? Task 4: Add scoring system
+? Task 5: done
+
+📋 Issue Preview:
+1. [MAYOR] Create HTML canvas and game loop
+2. [MAYOR] Add paddle controls with keyboard
+3. [MAYOR] Implement ball physics and collision
+4. [MAYOR] Add scoring system
+
+? Create 4 issues in owner/repo? Yes
+
+✅ Created 4/4 issues!
+🤖 Copilot will be assigned automatically by the orchestrator workflow.
+```
+
+Each issue is created with the `mayor-task` label, proper formatting, and acceptance criteria. The orchestrator assigns Copilot automatically.
 
 ---
 
@@ -174,7 +212,7 @@ your-repo/
 
 ## Testing
 
-The CLI has been comprehensively tested with 30 automated tests covering all core functionality.
+The CLI has been comprehensively tested with 45 automated tests covering all core functionality.
 
 ```bash
 # Run all tests
@@ -193,7 +231,7 @@ npm run test:watch
 - ✅ Configuration validation
 - ✅ Security constraints (YOLO mode)
 - ✅ Error handling & edge cases
-- ✅ All CLI commands (setup, verify, status, help, examples)
+- ✅ All CLI commands (setup, plan, verify, uninstall, status, help, examples)
 
 See [testing-guide.md](Docs/testing-guide.md) for detailed testing information.
 
@@ -204,14 +242,22 @@ See [testing-guide.md](Docs/testing-guide.md) for detailed testing information.
 **What works today:**
 - ✅ Core autonomous task execution
 - ✅ YOLO auto-approval for safe commands
-- ✅ Auto-merge workflow pipeline
-- ✅ Task queue orchestration
-- ✅ Comprehensive test suite (30 tests)
+- ✅ Auto-merge workflow pipeline (waits for Copilot to finish)
+- ✅ Task queue orchestration with GraphQL Copilot assignment
+- ✅ Auto-approve pending workflow runs from Copilot
+- ✅ Task planning with `plan` command
+- ✅ Clean uninstall with `uninstall` command
+- ✅ Comprehensive test suite (45 tests)
+
+**Safety features:**
+- ✅ Skips WIP PRs (title contains `[WIP]`)
+- ✅ Skips draft PRs (Copilot still working)
+- ✅ Checks for active Copilot sessions before merge
+- ✅ Protected paths require human review
 
 **What's in progress:**
 - ⚠️ Complex multi-file refactors may need task splitting
 - ⚠️ Cross-repository dependencies not supported
-- ⚠️ PR auto-approval not supported (GitHub limitation)
 
 ---
 
@@ -288,4 +334,4 @@ MIT — Use freely in your projects and teams.
 npx mayor-west-mode setup
 ```
 
-*Mayor West Mode v1.0.0*
+*Mayor West Mode v1.0.1*

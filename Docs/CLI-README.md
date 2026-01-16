@@ -110,7 +110,9 @@ GitHub.com → Settings → Branches → Add protection rule for main
 | Command | Purpose | Example |
 |---------|---------|---------|
 | `setup` | Interactive guided setup | `npx mayor-west-mode setup` |
+| `plan` | Break down goals into multiple issues | `npx mayor-west-mode plan` |
 | `verify` | Check all files are in place | `npx mayor-west-mode verify` |
+| `uninstall` | Remove all Mayor West files | `npx mayor-west-mode uninstall` |
 | `status` | Show current setup state | `npx mayor-west-mode status` |
 | `examples` | Show usage examples | `npx mayor-west-mode examples` |
 | `help` | Show help and usage | `npx mayor-west-mode help` |
