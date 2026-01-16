@@ -1385,13 +1385,34 @@ async function runSetupFlow() {
       } catch (e) {
         ora().fail('Could not enable squash merge');
       }
+
+      // Check if branch protection exists, if not create minimal rule
+      try {
+        execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/branches/main/protection`, { stdio: 'pipe' });
+        ora().succeed('Branch protection already configured on main');
+      } catch (e) {
+        // No branch protection - create rule with 1 required review (needed for auto-merge)
+        try {
+          const json = '{"enforce_admins":false,"required_pull_request_reviews":{"dismiss_stale_reviews":false,"require_code_owner_reviews":false,"required_approving_review_count":1},"required_status_checks":null,"restrictions":null}';
+          execSync(`echo '${json}' | gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/branches/main/protection -X PUT -H "Accept: application/vnd.github+json" --input -`, { stdio: 'pipe', shell: true });
+          ora().succeed('Branch protection enabled on main (1 review required for auto-merge)');
+        } catch (e2) {
+          ora().warn('Could not enable branch protection - auto-merge may fail');
+          console.log(chalk.yellow('   → Go to Settings → Branches → Add rule for "main"'));
+          console.log(chalk.yellow('   → Enable "Require pull request reviews" with 1 approval'));
+        }
+      }
+    } else {
+      console.log(chalk.yellow('\nManual configuration required:'));
+      console.log(chalk.gray('   GitHub → Settings → General'));
+      console.log(chalk.gray('   ├─ ☑ Allow auto-merge'));
+      console.log(chalk.gray('   ├─ ☑ Automatically delete head branches'));
+      console.log(chalk.gray('   └─ ☑ Allow squash merging'));
+      console.log(chalk.gray(''));
+      console.log(chalk.gray('   GitHub → Settings → Branches → Add rule'));
+      console.log(chalk.gray('   └─ Branch name pattern: main'));
+      console.log(chalk.yellow('   ⚠ Branch protection is REQUIRED for auto-merge!'));
     }
-  } else {
-    console.log(chalk.yellow('\nManual configuration required:'));
-    console.log(chalk.gray('   GitHub → Settings → General'));
-    console.log(chalk.gray('   ├─ ☑ Allow auto-merge'));
-    console.log(chalk.gray('   ├─ ☑ Automatically delete head branches'));
-    console.log(chalk.gray('   └─ ☑ Allow squash merging'));
   }
 
   log.divider();
@@ -2338,6 +2359,26 @@ async function runVerifyFlow() {
       });
     } catch (e) {
       warnings.push('Could not check delete branch setting');
+    }
+
+    // Check branch protection (REQUIRED for auto-merge to work)
+    try {
+      execSync(`gh api repos/${gitHubInfo.owner}/${gitHubInfo.repo}/branches/main/protection`, { 
+        encoding: 'utf8', 
+        stdio: ['pipe', 'pipe', 'pipe'] 
+      });
+      checks.push({
+        name: 'Branch Protection on main',
+        pass: true,
+        category: 'github',
+      });
+    } catch (e) {
+      checks.push({
+        name: 'Branch Protection on main',
+        pass: false,
+        category: 'github',
+      });
+      warnings.push('Branch protection NOT configured - auto-merge will FAIL without it!');
     }
 
     try {
