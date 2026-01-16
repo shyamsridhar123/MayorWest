@@ -1928,6 +1928,171 @@ async function runPlanFlow() {
 }
 
 // ============================================================================
+// UNINSTALL - REMOVE ALL MAYOR WEST FILES
+// ============================================================================
+
+async function runUninstallFlow() {
+  log.header('🗑️  Uninstall Mayor West Mode');
+
+  console.log(chalk.yellow('This will remove all Mayor West Mode files from this repository.\n'));
+
+  // Check if we're in a git repo
+  if (!isGitRepository()) {
+    log.error('Not a git repository. Run this from a repo with Mayor West Mode installed.');
+    process.exit(1);
+  }
+
+  // List all Mayor West files
+  const allFiles = Object.keys(FILES_TO_CREATE);
+  const existingFiles = allFiles.filter(file => fs.existsSync(file));
+
+  if (existingFiles.length === 0) {
+    console.log(chalk.green('No Mayor West Mode files found. Nothing to uninstall.\n'));
+    return;
+  }
+
+  console.log(chalk.cyan('Files to remove:\n'));
+  existingFiles.forEach(file => {
+    const config = FILES_TO_CREATE[file];
+    console.log(chalk.red(`  ✗ ${file}`) + chalk.gray(` (${config.displayName})`));
+  });
+
+  // Confirm
+  const { confirm } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'confirm',
+      message: chalk.yellow(`Remove ${existingFiles.length} files?`),
+      default: false,
+    },
+  ]);
+
+  if (!confirm) {
+    console.log(chalk.gray('\nUninstall cancelled.\n'));
+    return;
+  }
+
+  // Additional confirmation for safety
+  const { doubleConfirm } = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'doubleConfirm',
+      message: 'Type "uninstall" to confirm:',
+    },
+  ]);
+
+  if (doubleConfirm.toLowerCase() !== 'uninstall') {
+    console.log(chalk.gray('\nUninstall cancelled.\n'));
+    return;
+  }
+
+  console.log(chalk.cyan('\n🗑️  Removing files...\n'));
+
+  let removed = 0;
+  let failed = 0;
+
+  for (const file of existingFiles) {
+    try {
+      fs.unlinkSync(file);
+      console.log(chalk.green(`  ✓ Removed ${file}`));
+      removed++;
+
+      // Clean up empty directories
+      const dir = path.dirname(file);
+      if (dir !== '.' && fs.existsSync(dir)) {
+        try {
+          const contents = fs.readdirSync(dir);
+          if (contents.length === 0) {
+            fs.rmdirSync(dir);
+            console.log(chalk.gray(`    (removed empty directory: ${dir})`));
+          }
+        } catch {
+          // Directory not empty or can't remove, that's fine
+        }
+      }
+    } catch (error) {
+      console.log(chalk.red(`  ✗ Failed to remove ${file}: ${error.message}`));
+      failed++;
+    }
+  }
+
+  // Clean up nested empty directories
+  const dirsToCheck = [
+    '.github/agents',
+    '.github/workflows', 
+    '.github/ISSUE_TEMPLATE',
+    '.github/copilot',
+    '.github',
+    '.vscode',
+  ];
+
+  for (const dir of dirsToCheck) {
+    if (fs.existsSync(dir)) {
+      try {
+        const contents = fs.readdirSync(dir);
+        if (contents.length === 0) {
+          fs.rmdirSync(dir);
+          console.log(chalk.gray(`  (removed empty directory: ${dir})`));
+        }
+      } catch {
+        // Can't remove, that's fine
+      }
+    }
+  }
+
+  // Summary
+  console.log();
+  if (failed === 0) {
+    console.log(chalk.green.bold(`✅ Successfully removed ${removed} files.\n`));
+  } else {
+    console.log(chalk.yellow(`Removed ${removed} files, ${failed} failed.\n`));
+  }
+
+  // Offer to remove GitHub secret
+  console.log(chalk.cyan('Optional cleanup:\n'));
+  console.log(chalk.gray('  • Remove the GH_AW_AGENT_TOKEN secret from your repo settings'));
+  console.log(chalk.gray('  • Delete the PAT token from github.com/settings/tokens'));
+  console.log(chalk.gray('  • Disable auto-merge in repo settings if not needed\n'));
+
+  // Offer to commit the removal
+  const { commitRemoval } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'commitRemoval',
+      message: 'Commit the file removals?',
+      default: true,
+    },
+  ]);
+
+  if (commitRemoval) {
+    try {
+      execSync('git add -A', { stdio: 'pipe' });
+      execSync('git commit -m "[MAYOR] Uninstall Mayor West Mode"', { stdio: 'pipe' });
+      console.log(chalk.green('\n✓ Changes committed.'));
+      
+      const { pushChanges } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'pushChanges',
+          message: 'Push to remote?',
+          default: true,
+        },
+      ]);
+
+      if (pushChanges) {
+        execSync('git push', { stdio: 'pipe' });
+        console.log(chalk.green('✓ Changes pushed.\n'));
+      }
+    } catch (error) {
+      console.log(chalk.yellow(`\nCould not commit: ${error.message}`));
+      console.log(chalk.gray('You can commit manually: git add -A && git commit -m "Remove Mayor West Mode"\n'));
+    }
+  }
+
+  console.log(chalk.cyan.bold('👋 Mayor West Mode has been uninstalled.\n'));
+}
+
+// ============================================================================
 // VERIFICATION
 // ============================================================================
 
@@ -2303,6 +2468,9 @@ function showHelp() {
   console.log(chalk.yellow('  verify'));
   console.log(chalk.gray('    Verify that all Mayor West Mode files are in place\n'));
 
+  console.log(chalk.yellow('  uninstall'));
+  console.log(chalk.gray('    Remove all Mayor West Mode files from the repository\n'));
+
   console.log(chalk.yellow('  help'));
   console.log(chalk.gray('    Show this help message\n'));
 
@@ -2319,7 +2487,7 @@ function showHelp() {
   console.log(chalk.gray('  npx mayor-west-mode setup'));
   console.log(chalk.gray('  npx mayor-west-mode plan'));
   console.log(chalk.gray('  npx mayor-west-mode verify'));
-  console.log(chalk.gray('  npx mayor-west-mode examples\n'));
+  console.log(chalk.gray('  npx mayor-west-mode uninstall\n'));
 }
 
 function showExamples() {
@@ -2441,6 +2609,9 @@ async function main() {
         break;
       case 'plan':
         await runPlanFlow();
+        break;
+      case 'uninstall':
+        await runUninstallFlow();
         break;
       case 'help':
         showHelp();
