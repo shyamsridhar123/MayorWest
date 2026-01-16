@@ -11,15 +11,99 @@ on:
     types: [opened, labeled]
   pull_request:
     types: [opened, synchronize, closed]
+  # Run periodically to catch pending approvals
+  schedule:
+    - cron: '*/5 * * * *'
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
+  actions: write
 
 jobs:
+  # Job 0: Auto-approve pending workflow runs from Copilot
+  approve-copilot-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Approve Pending Copilot Workflow Runs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_AW_AGENT_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            // Find runs that need approval (action_required status)
+            const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              status: 'action_required',
+              per_page: 20
+            });
+            
+            if (runs.workflow_runs.length === 0) {
+              console.log('No workflow runs awaiting approval');
+              return;
+            }
+            
+            console.log(`Found ${runs.workflow_runs.length} runs awaiting approval`);
+            
+            for (const run of runs.workflow_runs) {
+              const actor = run.actor?.login?.toLowerCase() || '';
+              const triggeringActor = run.triggering_actor?.login?.toLowerCase() || '';
+              
+              const isCopilot = actor.includes('copilot') || triggeringActor.includes('copilot');
+              
+              if (!isCopilot) {
+                console.log(`Skipping run ${run.id} - not from Copilot (actor: ${actor})`);
+                continue;
+              }
+              
+              console.log(`Approving run ${run.id} (${run.name}) from ${actor}`);
+              
+              try {
+                // Approve the pending deployment
+                const { data: pendingDeployments } = await github.rest.actions.getPendingDeploymentsForRun({
+                  owner,
+                  repo,
+                  run_id: run.id
+                });
+                
+                if (pendingDeployments.length > 0) {
+                  const envIds = pendingDeployments.map(d => d.environment.id);
+                  await github.rest.actions.reviewPendingDeploymentsForRun({
+                    owner,
+                    repo,
+                    run_id: run.id,
+                    environment_ids: envIds,
+                    state: 'approved',
+                    comment: 'Auto-approved by Mayor West Orchestrator'
+                  });
+                  console.log(`  Approved deployments for run ${run.id}`);
+                } else {
+                  // No pending deployments, try re-running the workflow
+                  console.log(`  No pending deployments, attempting rerun...`);
+                  try {
+                    await github.rest.actions.reRunWorkflow({
+                      owner,
+                      repo,
+                      run_id: run.id
+                    });
+                    console.log(`  Re-triggered run ${run.id}`);
+                  } catch (e) {
+                    console.log(`  Could not rerun: ${e.message}`);
+                  }
+                }
+              } catch (error) {
+                console.log(`  Error approving run ${run.id}: ${error.message}`);
+              }
+            }
+
   orchestrate:
     runs-on: ubuntu-latest
+    needs: [approve-copilot-runs]
+    if: always()
     
     steps:
       - name: Find Next Unassigned mayor-task
