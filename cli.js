@@ -556,6 +556,24 @@ jobs:
                 pull_number: pr.number
               });
               
+              // Mark draft PRs as ready for review
+              if (prDetails.draft) {
+                console.log(\`  PR #\${pr.number} is a draft, marking as ready...\`);
+                try {
+                  await github.graphql(\`
+                    mutation($id: ID!) {
+                      markPullRequestReadyForReview(input: {pullRequestId: $id}) {
+                        pullRequest { id }
+                      }
+                    }
+                  \`, { id: prDetails.node_id });
+                  console.log(\`  Marked PR #\${pr.number} as ready for review\`);
+                } catch (error) {
+                  console.log(\`  Could not mark ready: \${error.message}\`);
+                  continue;
+                }
+              }
+              
               if (prDetails.mergeable_state === 'dirty' || prDetails.mergeable_state === 'blocked') {
                 console.log(\`  Skipping: PR is \${prDetails.mergeable_state}\`);
                 continue;
