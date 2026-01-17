@@ -245,6 +245,6 @@ The Mayor West Mode CLI has been **comprehensively tested** with:
 
 ---
 
-**Generated:** January 17, 2026  
+**Generated:** ${new Date().toISOString().split('T')[0]} (Auto-generated)  
 **Version:** 1.0.1  
 **Test Suite:** Mayor West Mode Comprehensive E2E Tests

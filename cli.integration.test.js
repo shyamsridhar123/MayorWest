@@ -97,9 +97,10 @@ describe('Mayor West Mode CLI - End-to-End Integration Tests', () => {
         execSync('node cli.js invalid-command', { 
           encoding: 'utf8',
           cwd: __dirname,
-          stdio: 'pipe'
+          stdio: 'pipe' // Capture stdout/stderr to prevent terminal output during test
         });
-        fail('Should have thrown an error');
+        // If we reach here, the command didn't throw an error as expected
+        throw new Error('Should have thrown an error for unknown command');
       } catch (error) {
         expect(error.stdout || error.message).toContain('Unknown command');
       }
@@ -346,6 +347,11 @@ When assigned a GitHub issue with the \`mayor-task\` label, you are responsible 
   });
 
   describe('Security and Safety Validations', () => {
+    // Constants matching CLI validation rules
+    const MIN_ITERATION_LIMIT = 1;
+    const MAX_ITERATION_LIMIT = 50;
+    const VALID_MERGE_STRATEGIES = ['SQUASH', 'MERGE', 'REBASE'];
+
     test('should validate YOLO settings block destructive commands', () => {
       const settings = {
         'chat.tools.terminal.autoApprove': {
@@ -375,33 +381,35 @@ When assigned a GitHub issue with the \`mayor-task\` label, you are responsible 
     });
 
     test('should validate iteration limits', () => {
-      const validLimits = [1, 5, 10, 15, 30, 50];
-      const invalidLimits = [0, -1, 51, 100, 1000];
+      const validLimits = [MIN_ITERATION_LIMIT, 5, 10, 15, 30, MAX_ITERATION_LIMIT];
+      const invalidLimits = [0, -1, MAX_ITERATION_LIMIT + 1, 100, 1000];
       
       validLimits.forEach(limit => {
-        expect(limit > 0 && limit <= 50).toBe(true);
+        expect(limit >= MIN_ITERATION_LIMIT && limit <= MAX_ITERATION_LIMIT).toBe(true);
       });
       
       invalidLimits.forEach(limit => {
-        expect(limit > 0 && limit <= 50).toBe(false);
+        expect(limit >= MIN_ITERATION_LIMIT && limit <= MAX_ITERATION_LIMIT).toBe(false);
       });
     });
 
     test('should validate merge strategy options', () => {
-      const validStrategies = ['SQUASH', 'MERGE', 'REBASE'];
       const invalidStrategies = ['FAST_FORWARD', 'CHERRY_PICK', 'INVALID'];
       
       invalidStrategies.forEach(strategy => {
-        expect(validStrategies.includes(strategy)).toBe(false);
+        expect(VALID_MERGE_STRATEGIES.includes(strategy)).toBe(false);
       });
       
-      validStrategies.forEach(strategy => {
-        expect(validStrategies.includes(strategy)).toBe(true);
+      VALID_MERGE_STRATEGIES.forEach(strategy => {
+        expect(VALID_MERGE_STRATEGIES.includes(strategy)).toBe(true);
       });
     });
   });
 
   describe('URL Parsing and Validation', () => {
+    // NOTE: This duplicates the parseGitHubUrl logic from cli.js for testing purposes.
+    // We test the logic in isolation here to ensure the function works correctly
+    // without requiring the entire CLI module to be imported.
     const parseGitHubUrl = (url) => {
       const httpsMatch = url.match(/github\.com\/([^/]+)\/([^/]+?)(\.git)?$/);
       const sshMatch = url.match(/git@github\.com:([^/]+)\/([^/]+?)(\.git)?$/);
