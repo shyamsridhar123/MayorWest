@@ -1,0 +1,9 @@
+# Mayor West Mode - Actor Allowlist
+# Only these actors can have their PRs auto-merged
+
+# Copilot agents
+* @Copilot
+* @copilot-swe-agent
+
+# Repository owner
+* @stephschofield

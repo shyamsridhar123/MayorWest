@@ -1,0 +1,28 @@
+# Mayor West Mode - Security Configuration
+# This file controls security layers for autonomous operations
+
+# Layer 3: Kill Switch
+# Set to false to pause all auto-merge operations
+enabled: true
+
+# Layer 2: Protected Paths
+# PRs modifying these paths will NOT be auto-merged
+protected_paths:
+  - ".github/workflows/**"
+  - ".github/mayor-west.yml"
+  - ".github/CODEOWNERS"
+  - "package.json"
+  - "package-lock.json"
+  - ".env*"
+  - "**/secrets/**"
+  - "**/credentials/**"
+
+# Merge settings
+merge:
+  method: squash  # squash, merge, or rebase
+  delete_branch_after_merge: true
+
+# Audit settings
+audit:
+  comment_on_pr: true
+  log_to_file: false
