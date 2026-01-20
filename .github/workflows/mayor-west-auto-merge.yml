@@ -16,24 +16,199 @@ jobs:
     if: github.actor == 'copilot-swe-agent' || github.actor == 'copilot' || github.actor == 'copilot[bot]'
     
     steps:
-      - name: Enable Auto-Merge
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # For pull_request_target, we need to checkout the PR head
+          ref: ${{ github.event.pull_request.head.sha }}
+          sparse-checkout: |
+            .github/mayor-west.yml
+            .github/CODEOWNERS
+
+      - name: Check Security Layers
+        id: security
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // ================================================================
+            // Layer 1: Check if actor is in CODEOWNERS allowlist
+            // ================================================================
+            let actorAllowed = false;
+            const codeownersPath = '.github/CODEOWNERS';
+            
+            if (fs.existsSync(codeownersPath)) {
+              const codeowners = fs.readFileSync(codeownersPath, 'utf8');
+              const actor = context.actor;
+              // Check if actor (copilot, copilot[bot]) is mentioned
+              actorAllowed = codeowners.includes('@' + actor) || 
+                             codeowners.includes('@copilot');
+              console.log(`Layer 1 - CODEOWNERS check: ${actorAllowed ? '✅ PASS' : '❌ FAIL'}`);
+              console.log(`  Actor: ${actor}`);
+            } else {
+              // No CODEOWNERS = allow all (backwards compatibility)
+              actorAllowed = true;
+              console.log('Layer 1 - CODEOWNERS: ⚠️ No file found, allowing all actors');
+            }
+            
+            if (!actorAllowed) {
+              core.setOutput('allowed', 'false');
+              core.setOutput('reason', 'Actor not in CODEOWNERS allowlist');
+              return;
+            }
+            
+            // ================================================================
+            // Layer 2: Check protected paths
+            // ================================================================
+            const configPath = '.github/mayor-west.yml';
+            let config = { enabled: true, protected_paths: [] };
+            
+            if (fs.existsSync(configPath)) {
+              const yaml = fs.readFileSync(configPath, 'utf8');
+              // Simple YAML parsing for our known structure
+              const enabledMatch = yaml.match(/^enabled:\s*(true|false)/m);
+              if (enabledMatch) {
+                config.enabled = enabledMatch[1] === 'true';
+              }
+              
+              // Extract protected_paths array
+              const pathsMatch = yaml.match(/protected_paths:\s*\n([\s\S]*?)(?=\n[a-z]|$)/);
+              if (pathsMatch) {
+                const pathLines = pathsMatch[1].split('\n');
+                config.protected_paths = pathLines
+                  .filter(line => line.trim().startsWith('-'))
+                  .map(line => line.replace(/^\s*-\s*["']?([^"'#]+)["']?.*$/, '$1').trim())
+                  .filter(p => p.length > 0);
+              }
+            }
+            
+            // ================================================================
+            // Layer 3: Kill switch check
+            // ================================================================
+            if (!config.enabled) {
+              console.log('Layer 3 - Kill switch: ❌ Mayor West Mode is PAUSED');
+              core.setOutput('allowed', 'false');
+              core.setOutput('reason', 'Mayor West Mode is paused (enabled: false)');
+              return;
+            }
+            console.log('Layer 3 - Kill switch: ✅ Mode is ENABLED');
+            
+            // ================================================================
+            // Layer 2 continued: Check if PR touches protected paths
+            // ================================================================
+            const prNumber = context.payload.pull_request.number;
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+            
+            const changedFiles = files.map(f => f.filename);
+            console.log(`Changed files: ${changedFiles.join(', ')}`);
+            
+            // Glob pattern matching
+            function matchesGlob(filepath, pattern) {
+              // Convert glob to regex
+              let regex = pattern
+                .replace(/\./g, '\\.')
+                .replace(/\*\*/g, '<<<DOUBLESTAR>>>')
+                .replace(/\*/g, '[^/]*')
+                .replace(/<<<DOUBLESTAR>>>/g, '.*');
+              return new RegExp('^' + regex + '$').test(filepath);
+            }
+            
+            const protectedHits = [];
+            for (const file of changedFiles) {
+              for (const pattern of config.protected_paths) {
+                if (matchesGlob(file, pattern)) {
+                  protectedHits.push({ file, pattern });
+                }
+              }
+            }
+            
+            if (protectedHits.length > 0) {
+              console.log('Layer 2 - Protected paths: ❌ BLOCKED');
+              for (const hit of protectedHits) {
+                console.log(`  ${hit.file} matches ${hit.pattern}`);
+              }
+              core.setOutput('allowed', 'false');
+              core.setOutput('reason', 'PR touches protected paths: ' + protectedHits.map(h => h.file).join(', '));
+              core.setOutput('protected_files', protectedHits.map(h => h.file).join(', '));
+              return;
+            }
+            console.log('Layer 2 - Protected paths: ✅ No protected files touched');
+            
+            // All checks passed
+            console.log('\n✅ All security layers passed - auto-merge allowed');
+            core.setOutput('allowed', 'true');
+
+      - name: Add Protected Path Comment
+        if: steps.security.outputs.allowed == 'false' && steps.security.outputs.protected_files != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `## 🛡️ Mayor West Security Check
+            
+            **Auto-merge disabled** - This PR touches protected paths.
+            
+            **Protected files:**
+            ${'${{ steps.security.outputs.protected_files }}'.split(', ').map(f => '- \`' + f + '\`').join('\n')}
+            
+            A human must review and merge this PR manually.
+            
+            ---
+            *Mayor West Mode - Security Layer 2 (Protected Paths)*`
+            });
+
+      - name: Mark PR Ready and Enable Auto-Merge
+        if: steps.security.outputs.allowed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNodeId = context.payload.pull_request.node_id;
+            const prNumber = context.payload.pull_request.number;
+            
+            // Step 1: Mark PR as ready (in case it's a draft)
+            if (context.payload.pull_request.draft) {
+              console.log('📝 PR is a draft, marking as ready for review...');
+              try {
+                await github.graphql(`
+                  mutation {
+                    markPullRequestReadyForReview(input: {
+                      pullRequestId: "${prNodeId}"
+                    }) {
+                      pullRequest {
+                        isDraft
+                      }
+                    }
+                  }
+                `);
+                console.log('✅ PR marked as ready for review');
+              } catch (error) {
+                console.log('⚠️ Could not mark PR as ready:', error.message);
+              }
+            }
+            
+            // Step 2: Enable auto-merge
             try {
               await github.graphql(`
                 mutation {
                   enablePullRequestAutoMerge(input: {
-                    pullRequestId: "${context.payload.pull_request.node_id}"
+                    pullRequestId: "${prNodeId}"
                     mergeMethod: SQUASH
                   }) {
                     pullRequest {
-                      id
-                      title
                       autoMergeRequest {
                         enabledAt
-                        mergeMethod
                       }
                     }
                   }
@@ -42,9 +217,11 @@ jobs:
               console.log('✅ Auto-merge enabled for PR #' + context.payload.pull_request.number);
               console.log('Note: PR will merge automatically once all required status checks pass.');
             } catch (error) {
-              console.log('⚠️  Auto-merge could not be enabled:', error.message);
-              console.log('This is expected if:');
-              console.log('  - Repository does not have "Allow auto-merge" enabled in settings');
-              console.log('  - Branch protection rules are not configured');
-              console.log('  - Required status checks are not defined');
+              console.log('⚠️ Auto-merge could not be enabled:', error.message);
+              console.log('Ensure "Allow auto-merge" is enabled in repository settings.');
             }
+
+      - name: Skip Auto-Merge
+        if: steps.security.outputs.allowed == 'false' && steps.security.outputs.protected_files == ''
+        run: |
+          echo "⚠️ Auto-merge skipped: ${{ steps.security.outputs.reason }}"

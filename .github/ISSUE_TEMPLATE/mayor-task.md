@@ -2,7 +2,22 @@
 name: Mayor Task
 about: Create a task for autonomous execution
 labels: mayor-task
+assignees: Copilot
 ---
+
+<!-- 
+🚨 COPILOT INSTRUCTIONS - READ FIRST 🚨
+Before implementing, you MUST read:
+1. .github/copilot-instructions.md (project rules)
+2. .github/agents/mayor-west-mode.md (your operating protocol)
+3. AGENTS.md (agent hierarchy)
+
+Key rules:
+- Commit format: [MAYOR] <description>
+- Run tests before committing: npm test
+- Never use destructive commands (rm -rf, git reset --hard)
+- Create PR with "Fixes #<issue-number>" in body
+-->
 
 # [MAYOR] Brief Description of Task
 

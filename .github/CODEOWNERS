@@ -1,9 +1,11 @@
-# Mayor West Mode - Actor Allowlist
-# Only these actors can have their PRs auto-merged
+# Mayor West Mode - CODEOWNERS
+# Defines who is authorized for autonomous workflows
+# PRs from these handles are eligible for auto-merge
 
-# Copilot agents
-* @Copilot
+# Repository owner - authorized for auto-merge
+* @shyamsridhar123
+
+# Copilot agents - authorized for auto-merge
+# copilot-swe-agent is the GitHub App that creates PRs
+* @copilot
 * @copilot-swe-agent
-
-# Repository owner
-* @stephschofield
