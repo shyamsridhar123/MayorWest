@@ -42,7 +42,7 @@ Issue Created → Orchestrator Assigns → Copilot Executes → PR Auto-Merges �
 
 ```bash
 # Step 1: Run the setup wizard
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 
 # Step 2: Follow the prompts, then configure GitHub
 # GitHub → Settings → Pull Requests → ✅ Allow auto-merge
