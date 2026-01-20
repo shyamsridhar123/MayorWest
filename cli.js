@@ -723,7 +723,7 @@ async function runSetupFlow() {
 
   console.log('\n2. Configure GitHub repository settings:');
   console.log(chalk.cyan('   Run the configure command:'));
-  console.log(chalk.yellow('   npx mayor-west-mode configure'));
+  console.log(chalk.yellow('   npx github:shyamsridhar123/MayorWest configure'));
   console.log(chalk.gray('   This will set up auto-merge, workflow permissions, and branch protection.'));
 
   console.log('\n3. Create a Personal Access Token (PAT):');
@@ -748,7 +748,7 @@ async function runSetupFlow() {
   console.log('\n7. Create your first task:');
   console.log(chalk.gray('   GitHub → Issues → New → Mayor Task template'));
 
-  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx mayor-west-mode configure'));
+  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx github:shyamsridhar123/MayorWest configure'));
 }
 
 // ============================================================================
@@ -771,7 +771,7 @@ async function runVerifyFlow() {
   const fileChecks = Object.entries(FILES_TO_CREATE).map(([filePath, config]) => ({
     name: config.displayName,
     pass: fs.existsSync(filePath),
-    errorMsg: `File missing: ${filePath}. Run: npx mayor-west-mode setup`,
+    errorMsg: `File missing: ${filePath}. Run: npx github:shyamsridhar123/MayorWest setup`,
   }));
   checks.push(...fileChecks);
 
@@ -829,7 +829,7 @@ async function runVerifyFlow() {
       checks.push({
         name: 'Branch protection (main)',
         pass: branchProtected,
-        errorMsg: `Branch protection not configured. Fix: Settings → Branches → Add rule for 'main'\nOr run: npx mayor-west-mode configure`,
+        errorMsg: `Branch protection not configured. Fix: Settings → Branches → Add rule for 'main'\nOr run: npx github:shyamsridhar123/MayorWest configure`,
       });
 
       // Check GH_AW_AGENT_TOKEN secret
@@ -894,7 +894,7 @@ function showHelp() {
   log.header('Mayor West Mode CLI - Help');
 
   console.log(chalk.cyan.bold('Usage:\n'));
-  console.log(chalk.yellow('  npx mayor-west-mode <command>\n'));
+  console.log(chalk.yellow('  npx github:shyamsridhar123/MayorWest <command>\n'));
 
   console.log(chalk.cyan.bold('Commands:\n'));
   console.log(chalk.yellow('  setup'));
@@ -919,9 +919,9 @@ function showHelp() {
   console.log(chalk.gray('    Show version information\n'));
 
   console.log(chalk.cyan.bold('Examples:\n'));
-  console.log(chalk.gray('  npx mayor-west-mode setup'));
-  console.log(chalk.gray('  npx mayor-west-mode verify'));
-  console.log(chalk.gray('  npx mayor-west-mode examples\n'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest setup'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest verify'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest examples\n'));
 }
 
 function showExamples() {
@@ -1102,7 +1102,7 @@ async function runConfigureFlow() {
   console.log(chalk.gray('  3. Select: "Require approval for first-time contributors who are new to GitHub"'));
   console.log(chalk.gray('  4. Click Save\n'));
 
-  log.success('Configuration complete! Run: npx mayor-west-mode verify');
+  log.success('Configuration complete! Run: npx github:shyamsridhar123/MayorWest verify');
 }
 
 function showStatus() {

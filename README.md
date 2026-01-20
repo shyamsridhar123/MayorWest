@@ -66,11 +66,11 @@ git push origin main
 
 | Command | Purpose |
 |---------|---------|
-| `npx mayor-west-mode setup` | Interactive setup wizard |
-| `npx mayor-west-mode verify` | Check configuration |
-| `npx mayor-west-mode status` | Show current state |
-| `npx mayor-west-mode examples` | Show task examples |
-| `npx mayor-west-mode help` | Show help |
+| `npx github:shyamsridhar123/MayorWest setup` | Interactive setup wizard |
+| `npx github:shyamsridhar123/MayorWest verify` | Check configuration |
+| `npx github:shyamsridhar123/MayorWest status` | Show current state |
+| `npx github:shyamsridhar123/MayorWest examples` | Show task examples |
+| `npx github:shyamsridhar123/MayorWest help` | Show help |
 
 ---
 
@@ -183,7 +183,7 @@ MIT — Use freely in your projects and teams.
 **Ready to try it?**
 
 ```bash
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 *Mayor West Mode v1.0.0*

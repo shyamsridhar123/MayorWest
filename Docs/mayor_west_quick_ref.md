@@ -7,8 +7,8 @@
 ## 🚀 Quick Start
 
 ```bash
-npx mayor-west-mode setup    # Interactive setup wizard
-npx mayor-west-mode verify   # Check configuration
+npx github:shyamsridhar123/MayorWest setup    # Interactive setup wizard
+npx github:shyamsridhar123/MayorWest verify   # Check configuration
 ```
 
 ---
@@ -54,11 +54,11 @@ Issue Created → Orchestrator Assigns → Copilot Executes → PR Auto-Merges �
 ## 📋 CLI Commands
 
 ```bash
-npx mayor-west-mode setup     # Guided setup wizard
-npx mayor-west-mode verify    # Check all files present
-npx mayor-west-mode status    # Show current state
-npx mayor-west-mode examples  # Show task examples
-npx mayor-west-mode help      # Show help
+npx github:shyamsridhar123/MayorWest setup     # Guided setup wizard
+npx github:shyamsridhar123/MayorWest verify    # Check all files present
+npx github:shyamsridhar123/MayorWest status    # Show current state
+npx github:shyamsridhar123/MayorWest examples  # Show task examples
+npx github:shyamsridhar123/MayorWest help      # Show help
 ```
 
 ---
@@ -83,4 +83,4 @@ npx mayor-west-mode help      # Show help
 
 ---
 
-**Ready?** `npx mayor-west-mode setup`
+**Ready?** `npx github:shyamsridhar123/MayorWest setup`
