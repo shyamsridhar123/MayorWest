@@ -201,6 +201,7 @@ your-repo/
 | Document | Description |
 |----------|-------------|
 | [philosophy.md](Docs/philosophy.md) | **The Philosophy of Mayor West Mode** — Deep exploration of our autonomous coding philosophy |
+| [autonomous-multi-agent-frameworks.md](Docs/autonomous-multi-agent-frameworks.md) | **Deep Research: Multi-Agent Coding Swarms** — Comprehensive guide to Ralph, Gas Station, and GSD frameworks |
 | [CLI-README.md](Docs/CLI-README.md) | Complete README with all features |
 | [cli-guide.md](Docs/cli-guide.md) | Detailed CLI user guide |
 | [mayor_west_mode_trd.md](Docs/mayor_west_mode_trd.md) | Technical Requirements Document |
