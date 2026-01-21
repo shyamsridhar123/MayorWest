@@ -7,6 +7,9 @@
 **Author**: @shyamsridhar123  
 **Status**: Planned  
 
+> [!NOTE]
+> **Background Research**: For comprehensive research on Ralph, Gas Station, and GSD frameworks, see [autonomous-multi-agent-frameworks.md](../autonomous-multi-agent-frameworks.md). This document focuses on implementation details for Mayor West Mode.
+
 ---
 
 ## Executive Summary
