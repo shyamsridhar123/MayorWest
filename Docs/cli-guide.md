@@ -86,6 +86,21 @@ Walks you through:
 4. Iteration limit configuration
 5. File creation
 
+### `plan` — Task Planning
+
+```bash
+npx mayor-west-mode plan
+```
+
+Break down a complex goal into multiple GitHub issues:
+1. Enter your high-level goal
+2. Break it into specific tasks
+3. Add context and acceptance criteria (optional)
+4. Preview and confirm
+5. Issues are created with `mayor-task` label
+
+Copilot is assigned automatically by the orchestrator workflow.
+
 ### `verify` — Configuration Check
 
 ```bash
@@ -100,6 +115,23 @@ Checks for:
 - ✓ Orchestrator workflow
 - ✓ Task template
 - ✓ GitHub remote
+
+### `uninstall` — Remove Mayor West Mode
+
+```bash
+npx mayor-west-mode uninstall
+```
+
+Completely removes all Mayor West files:
+1. Lists all existing Mayor West files
+2. Asks for confirmation (type "uninstall")
+3. Removes all files and empty directories
+4. Offers to commit and push the removal
+
+Also reminds you to clean up:
+- `GH_AW_AGENT_TOKEN` secret
+- PAT token on GitHub
+- Auto-merge settings
 
 ### `status` — Current State
 

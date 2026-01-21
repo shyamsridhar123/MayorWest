@@ -960,26 +960,152 @@ GitHub.com → Repository → Pull Requests → view auto-created PRs
 
 ## 6. Security & Safety Considerations
 
-### 6.1 Security
+### 6.1 Security Model Overview
+
+Mayor West Mode implements a **Smart Security Model** that provides full autonomy for safe changes while requiring human review for critical paths.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Security Architecture                        │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 1: Command Blocking (VS Code)                            │
+│  ├── Blocked: rm, rm -rf, kill, git reset --hard, git push -f  │
+│  └── Allowed: git commit, git push, npm test, npm build        │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 2: Protected Paths (Orchestrator)                        │
+│  ├── .github/workflows/** → Human review required               │
+│  ├── package.json, *.lock → Human review required               │
+│  └── src/**/*.ts → Auto-merge allowed                           │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 3: Kill Switch (CLI)                                     │
+│  ├── npx mayor-west-mode pause → Disable all auto-merge        │
+│  └── npx mayor-west-mode resume → Re-enable auto-merge         │
+├─────────────────────────────────────────────────────────────────┤
+│  Layer 4: Audit Trail                                           │
+│  ├── PR comments with merge timestamp and changed files         │
+│  └── GitHub Actions logs for all operations                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 Implemented Security Features (v1.0)
+
+| Feature | Status | Description | Location |
+|---------|--------|-------------|----------|
+| **Blocked Destructive Commands** | ✅ Implemented | `rm`, `rm -rf`, `kill`, `git reset --hard` blocked in YOLO config | `.vscode/settings.json` |
+| **Iteration Limit** | ✅ Implemented | Agent stops after 15 iterations to prevent runaway loops | `chat.agent.iterationLimit: 15` |
+| **Test Failure Stops Commit** | ✅ Implemented | Copilot will not commit if tests fail | Agent instructions |
+| **Protected Paths** | ✅ Implemented | PRs touching critical files require human review | `.github/mayor-west.yml` |
+| **Kill Switch (Pause/Resume)** | ✅ Implemented | CLI commands to disable/enable auto-merge | `npx mayor-west-mode pause/resume` |
+| **Audit Comments** | ✅ Implemented | Every auto-merge adds comment with timestamp and file list | Orchestrator workflow |
+| **Scoped PAT Token** | ✅ Implemented | Fine-grained token limited to single repository | `GH_AW_AGENT_TOKEN` |
+| **Least-Privilege Permissions** | ✅ Implemented | Workflows use only required scopes | `contents: write`, `pull-requests: write`, `issues: write` |
+
+### 6.3 Protected Paths Configuration
+
+The `.github/mayor-west.yml` file defines which paths require human review:
+
+```yaml
+protected_paths:
+  # Critical infrastructure - always require human review
+  - ".github/workflows/**"        # Workflow modifications
+  - ".github/mayor-west.yml"      # Security config itself
+  
+  # Package management - dependency changes need review
+  - "package.json"
+  - "package-lock.json"
+  - "yarn.lock"
+  - "pnpm-lock.yaml"
+  
+  # Secrets and sensitive files
+  - "**/.env*"                    # Environment files
+  - "**/secrets/**"               # Secrets directories
+  - "**/*.pem"                    # Certificates
+  - "**/*.key"                    # Private keys
+```
+
+When a Copilot PR touches any protected path:
+1. Auto-merge is **skipped**
+2. A comment is added explaining which files triggered the block
+3. Human must review and merge manually
+
+### 6.4 Risk Assessment
+
+| Risk | Severity | Current State | Mitigation |
+|------|----------|---------------|------------|
+| Copilot merges bad code | 🟡 Medium | Protected paths block critical changes | Human review for sensitive files |
+| Malicious commands executed | 🟢 Low | Destructive commands blocked in YOLO | Command whitelist/blacklist |
+| PAT token leaked | 🟡 Medium | Stored as GitHub Secret | Fine-grained, single-repo scope |
+| Runaway loop | 🟢 Low | Iteration limit: 15 | Agent stops automatically |
+| Workflow tampering | 🟢 Low | `.github/workflows/**` protected | Human review required |
+| Dependency attack | 🟡 Medium | `package.json` protected | Human review required |
+
+### 6.5 Security Controls Summary
 
 | Control | Mechanism | Validation |
 |---------|-----------|-----------|
-| **Code review gate** | PR requires 1 approval (auto-merge workflow provides) | ✅ Enforced by branch protection[web:64] |
+| **Code review gate** | PRs require passing checks before merge | ✅ Enforced by branch protection |
 | **Status checks required** | Cannot merge without passing tests | ✅ Enforced by branch protection |
-| **YOLO whitelist** | Only safe commands auto-approved; destructive commands denied | ✅ Regex patterns validated[web:51] |
-| **Least-privilege permissions** | Workflow uses only required scopes (`contents: write`, `pull-requests: write`, `issues: write`) | ✅ Validated in GitHub Actions[web:88] |
-| **Branch protection enforced** | Workflows cannot bypass main branch protection rules | ✅ GitHub enforces independent of workflow[web:64] |
-| **Audit trail** | All operations logged in GitHub Actions history | ✅ GitHub retains logs indefinitely |
+| **YOLO whitelist** | Only safe commands auto-approved; destructive commands denied | ✅ Regex patterns validated |
+| **Protected paths** | Critical files require human review | ✅ Glob patterns in `mayor-west.yml` |
+| **Branch protection enforced** | Workflows cannot bypass main branch protection rules | ✅ GitHub enforces independent of workflow |
+| **Audit trail** | All operations logged in GitHub Actions + PR comments | ✅ Retained indefinitely |
 
-### 6.2 Safety
+---
+
+## 6.6 Future Security Roadmap
+
+The following security features are planned for future releases:
+
+### v1.1 - Enhanced Command Blocking
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| **Block `git push --force`** | Add to blocked commands list | 🔴 High |
+| **Block `npm publish`** | Prevent accidental package publishing | 🟡 Medium |
+| **Block `docker`/`kubectl` commands** | Prevent infrastructure changes | 🟡 Medium |
+
+### v1.2 - Dry-Run Mode
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| **Dry-run mode** | PRs created but not auto-merged | 🔴 High |
+| **Config option** | `settings.dry_run: true` in `mayor-west.yml` | 🔴 High |
+| **Gradual rollout** | Start with dry-run, enable auto-merge after confidence builds | 🟡 Medium |
+
+### v1.3 - Required Status Checks
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| **CodeQL security scanning** | Add CodeQL workflow as required check | 🟡 Medium |
+| **Test coverage threshold** | Require minimum coverage (e.g., 80%) | 🟡 Medium |
+| **Linting as required check** | Add ESLint/Prettier as required check | 🟢 Low |
+| **Type checking** | TypeScript strict mode validation | 🟢 Low |
+
+### v1.4 - Advanced Security
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| **Commit signing** | Require signed commits in branch protection | 🟢 Low |
+| **Dependency scanning** | Dependabot alerts block auto-merge | 🟡 Medium |
+| **SBOM generation** | Software Bill of Materials for each release | 🟢 Low |
+| **Secrets scanning** | Block PRs that introduce secrets | 🟡 Medium |
+
+### v2.0 - Enterprise Features
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| **Role-based access** | Different autonomy levels per team | 🟢 Low |
+| **Approval workflows** | Multi-stage approval for production | 🟢 Low |
+| **Compliance logging** | Export audit logs to SIEM | 🟢 Low |
+| **SSO integration** | Enterprise identity provider support | 🟢 Low |
+
+---
+
+## 6.7 Safety Constraints
 
 | Constraint | Enforcement | Validation |
 |-----------|-------------|-----------|
-| **Iteration limit** | `chat.agent.iterationLimit: 15` prevents runaway loops | ✅ VS Code setting validated[web:51] |
-| **Fail-fast on tests** | Agent stops on test failure (does not proceed to commit) | ✅ Copilot agent design[web:91] |
-| **No auto-destructive commands** | `rm`, `kill`, `git reset --hard` explicitly denied in YOLO config | ✅ Regex whitelist/blacklist[web:51] |
+| **Iteration limit** | `chat.agent.iterationLimit: 15` prevents runaway loops | ✅ VS Code setting validated |
+| **Fail-fast on tests** | Agent stops on test failure (does not proceed to commit) | ✅ Copilot agent design |
+| **No auto-destructive commands** | `rm`, `kill`, `git reset --hard` explicitly denied in YOLO config | ✅ Regex whitelist/blacklist |
 | **Idempotent assignment** | Duplicate assignment prevented by "assignees.length == 0" check | ✅ Workflow logic validates |
 | **One issue at a time** | Only one task assigned to Copilot at a time (FIFO queue) | ✅ Orchestrator selects only first unassigned |
+| **Protected paths** | Critical files require human review before merge | ✅ Glob pattern matching in orchestrator |
 
 ---
 

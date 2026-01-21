@@ -1,10 +1,12 @@
 {
   "name": "mayor-west-mode",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Autonomous GitHub Copilot development workflow CLI - inspired by Family Guy's Mayor Adam West",
   "main": "index.js",
   "bin": {
-    "mayor-west-mode": "./cli.js"
+    "mayor-west-mode": "./cli.js",
+    "mayorwest": "./cli.js",
+    "mwm": "./cli.js"
   },
   "type": "module",
   "engines": {
@@ -22,7 +24,12 @@
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:patch": "standard-version --release-as patch",
+    "release:first": "standard-version --first-release"
   },
   "keywords": [
     "cli",
@@ -44,7 +51,8 @@
   "devDependencies": {
     "eslint": "^8.56.0",
     "jest": "^29.7.0",
-    "prettier": "^3.2.4"
+    "prettier": "^3.2.4",
+    "standard-version": "^9.5.0"
   },
   "repository": {
     "type": "git",
