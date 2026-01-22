@@ -194,6 +194,33 @@ your-repo/
 
 ---
 
+## Local Development
+
+**First time setup:**
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/MayorWest.git
+cd MayorWest
+
+# Install dependencies (REQUIRED)
+npm install
+
+# Verify installation
+npm test
+node cli.js help
+```
+
+> [!IMPORTANT]
+> **Must run `npm install` first!** The CLI and tests won't work without dependencies installed.
+
+**Common issues:**
+- ❌ `jest: not found` → Run `npm install`
+- ❌ `Cannot find package 'inquirer'` → Run `npm install`
+- See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more help
+
+---
+
 ## Documentation
 
 | Document | Description |
@@ -206,15 +233,16 @@ your-repo/
 | [mayor_west_quick_ref.md](Docs/mayor_west_quick_ref.md) | Quick reference card |
 | [testing-guide.md](Docs/testing-guide.md) | Comprehensive testing guide |
 | [test-execution-report.md](Docs/test-execution-report.md) | Test execution report |
+| [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | **Common issues and solutions** |
 
 ---
 
 ## Testing
 
-The CLI has been comprehensively tested with 45 automated tests covering all core functionality.
+The CLI has **80 automated tests** (45 unit + 35 integration) with 100% pass rate.
 
 ```bash
-# Run all tests
+# Run all tests (requires: npm install)
 npm test
 
 # Run tests with coverage
@@ -224,15 +252,20 @@ npm run test:coverage
 npm run test:watch
 ```
 
-**Test Coverage:**
-- ✅ GitHub URL parsing (HTTPS & SSH)
-- ✅ File template validation (all 5 files)
-- ✅ Configuration validation
-- ✅ Security constraints (YOLO mode)
-- ✅ Error handling & edge cases
-- ✅ All CLI commands (setup, plan, verify, uninstall, status, help, examples)
+**Test Status:**
+- ✅ 80 tests passing (100% pass rate)
+- ✅ CLI command execution (real `execSync()` calls)
+- ✅ File system operations (real fs API)
+- ✅ URL parsing & validation
+- ✅ Security constraints & error handling
+- ⚠️ Code coverage: 0% (tests duplicate logic, see analysis below)
 
-See [testing-guide.md](Docs/testing-guide.md) for detailed testing information.
+**Testing Documentation:**
+- [TESTING_ANALYSIS_README.md](TESTING_ANALYSIS_README.md) - Testing overview & navigation
+- [FUNCTIONAL_TESTING_SUMMARY.md](FUNCTIONAL_TESTING_SUMMARY.md) - Quick reference with scorecard
+- [TESTING_STRATEGY_ANALYSIS.md](TESTING_STRATEGY_ANALYSIS.md) - Detailed analysis & roadmap
+- [TESTING_VISUAL_GUIDE.md](TESTING_VISUAL_GUIDE.md) - Architecture diagrams
+- [Docs/testing-guide.md](Docs/testing-guide.md) - Original testing guide
 
 ---
 
