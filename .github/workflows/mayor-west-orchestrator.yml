@@ -1,13 +1,7 @@
 name: Mayor West Orchestrator
 # Autonomous task assignment and PR merge workflow
-# Triggers:
-# - Immediately when mayor-task issue is created/labeled
-# - When PR is opened/closed (to merge Copilot PRs and pick up next task)
-# - Periodically to catch pending approvals
-#
 # IMPORTANT: Uses pull_request_target to run in base repo context
 # This avoids "first-time contributor" approval requirements for Copilot PRs
-# Security is maintained through our actor checks
 
 on:
   workflow_dispatch:
@@ -195,7 +189,7 @@ jobs:
             
             if (!copilotAgent) {
               console.log('Available actors:', actors.map(a => a.login).join(', '));
-              throw new Error('Copilot coding agent (copilot-swe-agent) is not available for this repository');
+              throw new Error('Copilot coding agent (copilot-swe-agent) not available');
             }
             
             console.log(`Found copilot agent with ID: ${copilotAgent.id}`);
@@ -218,8 +212,6 @@ jobs:
             const issueId = issueResponse.repository.issue.id;
             const currentAssignees = issueResponse.repository.issue.assignees.nodes.map(a => a.id);
             
-            console.log(`Issue ID: ${issueId}`);
-            
             // Step 3: Assign Copilot using replaceActorsForAssignable mutation
             const actorIds = [copilotAgent.id, ...currentAssignees.filter(id => id !== copilotAgent.id)];
             
@@ -237,7 +229,7 @@ jobs:
             await github.graphql(assignMutation, { assignableId: issueId, actorIds });
             console.log(`Successfully assigned Copilot to issue #${taskNumber}`);
             
-            // Step 4: Add comment with instructions for Copilot
+            // Step 4: Add comment with instructions
             const commentBody = [
               '**@copilot-swe-agent** assigned to this task.',
               '',
@@ -249,9 +241,7 @@ jobs:
               '1. Run `npm test` before committing',
               '2. Use commit format: `[MAYOR] <description>`',
               `3. Include \`Fixes #${taskNumber}\` in PR body`,
-              '4. Never use destructive commands',
-              '',
-              'Good luck, Mayor West!'
+              '4. Never use destructive commands'
             ].join('\n');
             
             await github.rest.issues.createComment({
@@ -277,7 +267,6 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             
-            // Find open PRs from Copilot
             const { data: prs } = await github.rest.pulls.list({
               owner,
               repo,
@@ -286,18 +275,9 @@ jobs:
               direction: 'asc'
             });
             
-            console.log(`Found ${prs.length} open PRs`);
-            
-            // Filter for Copilot PRs - check various login formats
             const copilotPRs = prs.filter(pr => {
               const login = pr.user.login.toLowerCase();
-              const isCopilot = login === 'copilot' || 
-                                login === 'copilot-swe-agent' ||
-                                login.includes('copilot');
-              if (isCopilot) {
-                console.log(`  Found Copilot PR #${pr.number} by ${pr.user.login}`);
-              }
-              return isCopilot;
+              return login === 'copilot' || login === 'copilot-swe-agent' || login.includes('copilot');
             });
             
             if (copilotPRs.length === 0) {
@@ -324,14 +304,12 @@ jobs:
               return;
             }
             
-            // RULE: Process only ONE PR at a time (oldest first)
-            // Find the first PR that's ready to merge
             for (const pr of copilotPRs) {
               console.log(`Processing PR #${pr.number}: ${pr.title}`);
               
               // Skip WIP PRs - Copilot is still working on them
               if (pr.title.includes('[WIP]') || pr.title.toLowerCase().startsWith('wip')) {
-                console.log(`  Skipping: PR is marked as Work In Progress`);
+                console.log('  Skipping: PR is marked as Work In Progress');
                 continue;
               }
               
@@ -345,9 +323,16 @@ jobs:
                 continue;
               }
               
+              // Get full PR details
+              const { data: prDetails } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: pr.number
+              });
+              
               // If PR is draft but no [WIP] and no active session, mark it ready
-              if (pr.draft) {
-                console.log(`  PR is draft but Copilot seems done. Marking ready for review...`);
+              if (prDetails.draft) {
+                console.log('  PR is draft but Copilot seems done. Marking ready for review...');
                 try {
                   await github.graphql(`
                     mutation($prId: ID!) {
@@ -363,24 +348,11 @@ jobs:
                 }
               }
               
-              // Check if PR is mergeable
-              const { data: prDetails } = await github.rest.pulls.get({
-                owner,
-                repo,
-                pull_number: pr.number
-              });
-              
-              if (prDetails.mergeable_state === 'dirty') {
-                console.log(`  Skipping: PR has merge conflicts`);
+              if (prDetails.mergeable_state === 'dirty' || prDetails.mergeable_state === 'blocked') {
+                console.log(`  Skipping: PR is ${prDetails.mergeable_state}`);
                 continue;
               }
               
-              if (prDetails.mergeable_state === 'blocked') {
-                console.log(`  Skipping: PR is blocked (status checks pending)`);
-                continue;
-              }
-              
-              // Approve the PR first
               try {
                 await github.rest.pulls.createReview({
                   owner,
@@ -394,7 +366,6 @@ jobs:
                 console.log(`  Could not approve: ${error.message}`);
               }
               
-              // Merge the PR
               try {
                 await github.rest.pulls.merge({
                   owner,

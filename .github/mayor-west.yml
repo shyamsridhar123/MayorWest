@@ -1,47 +1,28 @@
-# Mayor West Mode Security Configuration
-# This file controls autonomous merge behavior for Copilot PRs
+# Mayor West Mode - Security Configuration
+# This file controls security layers for autonomous operations
 
-# Enable/disable Mayor West Mode (set to false to pause all auto-merges)
+# Layer 3: Kill Switch
+# Set to false to pause all auto-merge operations
 enabled: true
 
-# Protected paths - PRs touching these files require human review
-# Uses glob patterns matching file paths in the PR
+# Layer 2: Protected Paths
+# PRs modifying these paths will NOT be auto-merged
 protected_paths:
-  # Critical infrastructure
-  - ".github/workflows/**"        # Workflow modifications need human review
-  - ".github/mayor-west.yml"      # This config file itself
-  
-  # Package management
-  - "package.json"                # Dependency changes
-  - "package-lock.json"           # Lock file changes
-  - "yarn.lock"                   # Yarn lock file
-  - "pnpm-lock.yaml"              # pnpm lock file
-  
-  # Secrets and environment
-  - "**/.env*"                    # Environment files
-  - "**/secrets/**"               # Any secrets directory
-  - "**/*.pem"                    # Certificates
-  - "**/*.key"                    # Private keys
+  - ".github/workflows/**"
+  - ".github/mayor-west.yml"
+  - ".github/CODEOWNERS"
+  - "package.json"
+  - "package-lock.json"
+  - ".env*"
+  - "**/secrets/**"
+  - "**/credentials/**"
 
-# Settings for auto-merge behavior
-settings:
-  # Merge method: squash, merge, or rebase
-  merge_method: squash
-  
-  # Delete branch after merge
-  delete_branch: true
-  
-  # Require all status checks to pass
-  require_status_checks: true
-  
-  # Add audit comment to merged PRs
-  audit_comments: true
+# Merge settings
+merge:
+  method: squash  # squash, merge, or rebase
+  delete_branch_after_merge: true
 
-# Audit log settings
+# Audit settings
 audit:
-  # Log all Copilot merge events to a file
+  comment_on_pr: true
   log_to_file: false
-  log_path: ".github/mayor-west-audit.log"
-  
-  # Add comment to PR with merge details
-  comment_on_merge: true

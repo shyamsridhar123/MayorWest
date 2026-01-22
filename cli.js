@@ -2048,20 +2048,10 @@ async function runUninstallFlow() {
     console.log(chalk.red(`  ✗ ${file}`) + chalk.gray(` (${config.displayName})`));
   });
 
-  // Confirm
-  const { confirm } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'confirm',
-      message: chalk.yellow(`Remove ${existingFiles.length} files?`),
-      default: false,
-    },
-  ]);
-
-  if (!confirm) {
-    console.log(chalk.gray('\nUninstall cancelled.\n'));
-    return;
-  }
+  console.log('\n2. Configure GitHub repository settings:');
+  console.log(chalk.cyan('   Run the configure command:'));
+  console.log(chalk.yellow('   npx github:shyamsridhar123/MayorWest configure'));
+  console.log(chalk.gray('   This will set up auto-merge, workflow permissions, and branch protection.'));
 
   // Additional confirmation for safety
   const { doubleConfirm } = await inquirer.prompt([
@@ -2107,80 +2097,7 @@ async function runUninstallFlow() {
     }
   }
 
-  // Clean up nested empty directories
-  const dirsToCheck = [
-    '.github/agents',
-    '.github/workflows', 
-    '.github/ISSUE_TEMPLATE',
-    '.github/copilot',
-    '.github',
-    '.vscode',
-  ];
-
-  for (const dir of dirsToCheck) {
-    if (fs.existsSync(dir)) {
-      try {
-        const contents = fs.readdirSync(dir);
-        if (contents.length === 0) {
-          fs.rmdirSync(dir);
-          console.log(chalk.gray(`  (removed empty directory: ${dir})`));
-        }
-      } catch {
-        // Can't remove, that's fine
-      }
-    }
-  }
-
-  // Summary
-  console.log();
-  if (failed === 0) {
-    console.log(chalk.green.bold(`✅ Successfully removed ${removed} files.\n`));
-  } else {
-    console.log(chalk.yellow(`Removed ${removed} files, ${failed} failed.\n`));
-  }
-
-  // Offer to remove GitHub secret
-  console.log(chalk.cyan('Optional cleanup:\n'));
-  console.log(chalk.gray('  • Remove the GH_AW_AGENT_TOKEN secret from your repo settings'));
-  console.log(chalk.gray('  • Delete the PAT token from github.com/settings/tokens'));
-  console.log(chalk.gray('  • Disable auto-merge in repo settings if not needed\n'));
-
-  // Offer to commit the removal
-  const { commitRemoval } = await inquirer.prompt([
-    {
-      type: 'confirm',
-      name: 'commitRemoval',
-      message: 'Commit the file removals?',
-      default: true,
-    },
-  ]);
-
-  if (commitRemoval) {
-    try {
-      execSync('git add -A', { stdio: 'pipe' });
-      execSync('git commit -m "[MAYOR] Uninstall Mayor West Mode"', { stdio: 'pipe' });
-      console.log(chalk.green('\n✓ Changes committed.'));
-      
-      const { pushChanges } = await inquirer.prompt([
-        {
-          type: 'confirm',
-          name: 'pushChanges',
-          message: 'Push to remote?',
-          default: true,
-        },
-      ]);
-
-      if (pushChanges) {
-        execSync('git push', { stdio: 'pipe' });
-        console.log(chalk.green('✓ Changes pushed.\n'));
-      }
-    } catch (error) {
-      console.log(chalk.yellow(`\nCould not commit: ${error.message}`));
-      console.log(chalk.gray('You can commit manually: git add -A && git commit -m "Remove Mayor West Mode"\n'));
-    }
-  }
-
-  console.log(chalk.cyan.bold('👋 Mayor West Mode has been uninstalled.\n'));
+  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx github:shyamsridhar123/MayorWest configure'));
 }
 
 // ============================================================================
@@ -2202,6 +2119,15 @@ async function runVerifyFlow() {
     category: 'core',
   });
 
+  // Check files
+  const fileChecks = Object.entries(FILES_TO_CREATE).map(([filePath, config]) => ({
+    name: config.displayName,
+    pass: fs.existsSync(filePath),
+    errorMsg: `File missing: ${filePath}. Run: npx github:shyamsridhar123/MayorWest setup`,
+  }));
+  checks.push(...fileChecks);
+
+  // Check GitHub connection
   const remoteUrl = getGitRemoteUrl();
   checks.push({
     name: 'GitHub Remote',
@@ -2446,6 +2372,9 @@ async function runVerifyFlow() {
         stdio: ['pipe', 'pipe', 'pipe'] 
       }).trim();
       checks.push({
+        name: 'Branch protection (main)',
+        pass: branchProtected,
+        errorMsg: `Branch protection not configured. Fix: Settings → Branches → Add rule for 'main'\nOr run: npx github:shyamsridhar123/MayorWest configure`,
         name: 'Workflow Permissions: Read & Write',
         pass: workflowPerms === 'write',
         category: 'github',
@@ -2567,7 +2496,7 @@ function showHelp() {
   log.header('Mayor West Mode CLI - Help');
 
   console.log(chalk.cyan.bold('Usage:\n'));
-  console.log(chalk.yellow('  npx mayor-west-mode <command>\n'));
+  console.log(chalk.yellow('  npx github:shyamsridhar123/MayorWest <command>\n'));
 
   console.log(chalk.cyan.bold('Commands:\n'));
   console.log(chalk.yellow('  setup'));
@@ -2595,10 +2524,10 @@ function showHelp() {
   console.log(chalk.gray('    Show version information\n'));
 
   console.log(chalk.cyan.bold('Examples:\n'));
-  console.log(chalk.gray('  npx mayor-west-mode setup'));
-  console.log(chalk.gray('  npx mayor-west-mode plan'));
-  console.log(chalk.gray('  npx mayor-west-mode verify'));
-  console.log(chalk.gray('  npx mayor-west-mode uninstall\n'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest setup'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest plan'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest verify'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest uninstall\n'));
 }
 
 function showExamples() {

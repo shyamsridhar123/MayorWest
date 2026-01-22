@@ -1,26 +1,18 @@
 name: Mayor West Auto-Merge
-# Autonomous PR merge workflow with 4-layer security architecture
-# Layer 1: Actor allowlist (CODEOWNERS)
-# Layer 2: Protected paths check (mayor-west.yml)
-# Layer 3: Kill switch (enabled flag)
-# Layer 4: Audit trail (PR comments)
-#
 # IMPORTANT: Uses pull_request_target to run in base repo context
 # This avoids "first-time contributor" approval requirements for Copilot PRs
-# Security is maintained through our 4-layer checks (CODEOWNERS, protected paths, etc.)
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    # Layer 1: Only run for Copilot PRs (copilot-swe-agent is the GitHub App actor)
     if: github.actor == 'copilot-swe-agent' || github.actor == 'copilot' || github.actor == 'copilot[bot]'
     
     steps:
@@ -222,26 +214,8 @@ jobs:
                   }
                 }
               `);
-              
-              // Layer 4: Audit trail
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: `## 🤖 Mayor West Auto-Merge Enabled
-              
-            ✅ All security checks passed:
-            - **Layer 1**: Actor in CODEOWNERS allowlist
-            - **Layer 2**: No protected paths touched  
-            - **Layer 3**: Mode enabled
-            
-            This PR will merge automatically when all status checks pass.
-            
-            ---
-            *Mayor West Mode v1.0.0*`
-              });
-              
-              console.log('✅ Auto-merge enabled for PR #' + prNumber);
+              console.log('✅ Auto-merge enabled for PR #' + context.payload.pull_request.number);
+              console.log('Note: PR will merge automatically once all required status checks pass.');
             } catch (error) {
               console.log('⚠️ Auto-merge could not be enabled:', error.message);
               console.log('Ensure "Allow auto-merge" is enabled in repository settings.');

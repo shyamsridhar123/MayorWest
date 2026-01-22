@@ -42,7 +42,7 @@ This CLI creates the configuration files needed: VS Code settings for YOLO auto-
 ### Step 1: Install (30 seconds)
 
 ```bash
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 No installation required. Works immediately.
@@ -98,10 +98,10 @@ GitHub.com → Settings → Branches → Add protection rule for main
 
 | Method | Command | Best For |
 |--------|---------|----------|
-| **NPX** (recommended) | `npx mayor-west-mode setup` | One-time setup, always latest |
+| **NPX** (recommended) | `npx github:shyamsridhar123/MayorWest setup` | One-time setup, always latest |
 | **Global** | `npm i -g mayor-west-mode` | Multiple repos, fast execution |
 | **Local** | `npm i -D mayor-west-mode` | Version-locked, team consistency |
-| **Docker** | `docker run node:18 npx mayor-west-mode setup` | CI/CD, no local Node.js |
+| **Docker** | `docker run node:18 npx github:shyamsridhar123/MayorWest setup` | CI/CD, no local Node.js |
 
 ---
 
@@ -109,13 +109,11 @@ GitHub.com → Settings → Branches → Add protection rule for main
 
 | Command | Purpose | Example |
 |---------|---------|---------|
-| `setup` | Interactive guided setup | `npx mayor-west-mode setup` |
-| `plan` | Break down goals into multiple issues | `npx mayor-west-mode plan` |
-| `verify` | Check all files are in place | `npx mayor-west-mode verify` |
-| `uninstall` | Remove all Mayor West files | `npx mayor-west-mode uninstall` |
-| `status` | Show current setup state | `npx mayor-west-mode status` |
-| `examples` | Show usage examples | `npx mayor-west-mode examples` |
-| `help` | Show help and usage | `npx mayor-west-mode help` |
+| `setup` | Interactive guided setup | `npx github:shyamsridhar123/MayorWest setup` |
+| `verify` | Check all files are in place | `npx github:shyamsridhar123/MayorWest verify` |
+| `status` | Show current setup state | `npx github:shyamsridhar123/MayorWest status` |
+| `examples` | Show usage examples | `npx github:shyamsridhar123/MayorWest examples` |
+| `help` | Show help and usage | `npx github:shyamsridhar123/MayorWest help` |
 
 ---
 
@@ -203,10 +201,10 @@ YOLO mode auto-approves **safe commands** so Copilot can work autonomously:
 
 ```bash
 # Start the setup wizard
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 
 # Verify your configuration
-npx mayor-west-mode verify
+npx github:shyamsridhar123/MayorWest verify
 ```
 
 ### Creating Tasks
@@ -302,7 +300,7 @@ These are ideas, not promises. The current focus is making the basics work relia
 | "Tests keep failing" | Review task acceptance criteria; simplify if needed |
 | "Workflow error: GitHub Actions is not permitted to approve PRs" | This is expected—GitHub doesn't allow workflows to approve their own PRs. Auto-merge works with status checks alone. |
 
-**Having issues?** Run `npx mayor-west-mode verify` to check your setup status.
+**Having issues?** Run `npx github:shyamsridhar123/MayorWest verify` to check your setup status.
 
 ---
 
@@ -340,7 +338,7 @@ Your autonomous agent embodies these principles:
 ## Ready to Activate Mayor West Mode?
 
 ```bash
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 ---

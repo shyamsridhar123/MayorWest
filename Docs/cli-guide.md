@@ -22,13 +22,13 @@
 **One command to get started** (requires Node.js 18+):
 
 ```bash
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 Follow the interactive prompts, then verify:
 
 ```bash
-npx mayor-west-mode verify
+npx github:shyamsridhar123/MayorWest verify
 ```
 
 ---
@@ -40,7 +40,7 @@ npx mayor-west-mode verify
 Run directly without installing—always gets the latest version:
 
 ```bash
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 ### Global Installation
@@ -58,7 +58,7 @@ Version-lock for team consistency:
 
 ```bash
 npm install mayor-west-mode --save-dev
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 ### Docker
@@ -66,7 +66,7 @@ npx mayor-west-mode setup
 For CI/CD or environments without Node.js:
 
 ```bash
-docker run -v $(pwd):/app -w /app node:18 npx mayor-west-mode setup
+docker run -v $(pwd):/app -w /app node:18 npx github:shyamsridhar123/MayorWest setup
 ```
 
 ---
@@ -76,7 +76,7 @@ docker run -v $(pwd):/app -w /app node:18 npx mayor-west-mode setup
 ### `setup` — Interactive Setup Wizard
 
 ```bash
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 Walks you through:
@@ -104,7 +104,7 @@ Copilot is assigned automatically by the orchestrator workflow.
 ### `verify` — Configuration Check
 
 ```bash
-npx mayor-west-mode verify
+npx github:shyamsridhar123/MayorWest verify
 ```
 
 Checks for:
@@ -136,7 +136,7 @@ Also reminds you to clean up:
 ### `status` — Current State
 
 ```bash
-npx mayor-west-mode status
+npx github:shyamsridhar123/MayorWest status
 ```
 
 Shows:
@@ -147,7 +147,7 @@ Shows:
 ### `examples` — Usage Examples
 
 ```bash
-npx mayor-west-mode examples
+npx github:shyamsridhar123/MayorWest examples
 ```
 
 Displays:
@@ -158,7 +158,7 @@ Displays:
 ### `help` — Help & Usage
 
 ```bash
-npx mayor-west-mode help
+npx github:shyamsridhar123/MayorWest help
 ```
 
 ---
@@ -295,14 +295,14 @@ git push origin main
 ```bash
 git init
 git remote add origin git@github.com:user/repo.git
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 ### "No git remote found"
 
 ```bash
 git remote add origin git@github.com:user/repo.git
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 ```
 
 ### "Could not parse GitHub URL"
@@ -330,7 +330,7 @@ The CLI will ask if you want to overwrite. Choose "Yes" to update with latest te
 Run setup in Custom mode and select only the missing files:
 
 ```bash
-npx mayor-west-mode setup
+npx github:shyamsridhar123/MayorWest setup
 # Choose: Custom Setup
 # Select: [missing files only]
 ```
@@ -347,7 +347,7 @@ Setup multiple repositories at once:
 #!/bin/bash
 for repo in repo-a repo-b repo-c; do
   cd ~/projects/$repo
-  npx mayor-west-mode setup
+  npx github:shyamsridhar123/MayorWest setup
   git add .vscode .github
   git commit -m "[MAYOR] Add autonomous workflow configuration"
   git push origin main
@@ -360,7 +360,7 @@ Add to your CI pipeline:
 
 ```yaml
 - name: Verify Mayor West Setup
-  run: npx mayor-west-mode verify
+  run: npx github:shyamsridhar123/MayorWest verify
 ```
 
 ### Different Settings Per Repo
@@ -391,9 +391,9 @@ Complex projects:
 ## Getting Help
 
 ```bash
-npx mayor-west-mode help      # CLI help
-npx mayor-west-mode examples  # Usage examples
-npx mayor-west-mode status    # Current state
+npx github:shyamsridhar123/MayorWest help      # CLI help
+npx github:shyamsridhar123/MayorWest examples  # Usage examples
+npx github:shyamsridhar123/MayorWest status    # Current state
 ```
 
 **Documentation:**

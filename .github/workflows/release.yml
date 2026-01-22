@@ -20,7 +20,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
@@ -33,23 +32,14 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          # Extract changelog section for this version
-          sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$d' > release-notes.md
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          cat release-notes.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$d' > release-notes.md || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           name: v${{ steps.changelog.outputs.version }}
-          body: ${{ steps.changelog.outputs.notes }}
+          body_path: release-notes.md
           draft: false
           prerelease: ${{ contains(github.ref, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

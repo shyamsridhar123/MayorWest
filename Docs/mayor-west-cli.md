@@ -7,9 +7,9 @@
  * development workflows inspired by Family Guy's Mayor Adam West.
  * 
  * Usage:
- *   npx mayor-west-mode setup
- *   npx mayor-west-mode verify
- *   npx mayor-west-mode help
+ *   npx github:shyamsridhar123/MayorWest setup
+ *   npx github:shyamsridhar123/MayorWest verify
+ *   npx github:shyamsridhar123/MayorWest help
  */
 
 const fs = require('fs');
@@ -690,7 +690,7 @@ async function runSetupFlow() {
   console.log('\n5. Create your first task:');
   console.log(chalk.gray('   GitHub → Issues → New → Mayor Task template'));
 
-  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx mayor-west-mode verify'));
+  console.log(chalk.cyan.bold('\n\nReady? Run: ') + chalk.yellow('npx github:shyamsridhar123/MayorWest verify'));
 }
 
 // ============================================================================
@@ -713,7 +713,7 @@ async function runVerifyFlow() {
   const fileChecks = Object.entries(FILES_TO_CREATE).map(([filePath, config]) => ({
     name: config.displayName,
     pass: fs.existsSync(filePath),
-    errorMsg: `File missing: ${filePath}. Run: npx mayor-west-mode setup`,
+    errorMsg: `File missing: ${filePath}. Run: npx github:shyamsridhar123/MayorWest setup`,
   }));
   checks.push(...fileChecks);
 
@@ -771,7 +771,7 @@ async function runVerifyFlow() {
       checks.push({
         name: 'Branch protection (main)',
         pass: branchProtected,
-        errorMsg: `Branch protection not configured. Fix: Settings → Branches → Add rule for 'main'\nOr run: npx mayor-west-mode configure`,
+        errorMsg: `Branch protection not configured. Fix: Settings → Branches → Add rule for 'main'\nOr run: npx github:shyamsridhar123/MayorWest configure`,
       });
 
       // Check GH_AW_AGENT_TOKEN secret
@@ -836,7 +836,7 @@ function showHelp() {
   log.header('Mayor West Mode CLI - Help');
 
   console.log(chalk.cyan.bold('Usage:\n'));
-  console.log(chalk.yellow('  npx mayor-west-mode <command>\n'));
+  console.log(chalk.yellow('  npx github:shyamsridhar123/MayorWest <command>\n'));
 
   console.log(chalk.cyan.bold('Commands:\n'));
   console.log(chalk.yellow('  setup'));
@@ -855,9 +855,9 @@ function showHelp() {
   console.log(chalk.gray('    Show current Mayor West Mode status\n'));
 
   console.log(chalk.cyan.bold('Examples:\n'));
-  console.log(chalk.gray('  npx mayor-west-mode setup'));
-  console.log(chalk.gray('  npx mayor-west-mode verify'));
-  console.log(chalk.gray('  npx mayor-west-mode examples\n'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest setup'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest verify'));
+  console.log(chalk.gray('  npx github:shyamsridhar123/MayorWest examples\n'));
 }
 
 function showExamples() {
